@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"fmt"
+	"project-void/internal/commands"
 	"project-void/internal/jira"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
@@ -9,13 +10,16 @@ import (
 	"project-void/internal/ui/styles"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
 	commitsTable   commitstable.Model
 	jiraTable      jiratable.Model
 	slackTable     slacktable.Model
+	textInput      textinput.Model
 	selectedFolder string
 	selectedDate   time.Time
 	isDev          bool
@@ -24,6 +28,11 @@ type Model struct {
 	loaded         bool
 	loadError      string
 	focusedTable   int
+	commandError   string
+	showingHelp    bool
+	showingCommand bool
+	command        string
+	submitted      bool
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -34,6 +43,12 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	commitsTable.StartLoading()
 	jiraTable.StartLoading()
 	slackTable.StartLoading()
+
+	ti := textinput.New()
+	ti.Placeholder = "Enter a command (e.g., help)..."
+	ti.Focus()
+	ti.CharLimit = 256
+	ti.Width = 50
 
 	if isDev {
 		commitsTable.Focus()
@@ -53,10 +68,12 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		commitsTable:   commitsTable,
 		jiraTable:      jiraTable,
 		slackTable:     slackTable,
+		textInput:      ti,
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
 		focusedTable:   0,
+		showingCommand: false,
 	}
 }
 
@@ -117,6 +134,7 @@ func (m Model) Init() tea.Cmd {
 		m.commitsTable.Init(),
 		m.jiraTable.Init(),
 		m.slackTable.Init(),
+		textinput.Blink,
 		loadCommitsCmd(m.selectedFolder, m.selectedDate),
 		loadJiraCmd(m.selectedDate),
 		loadSlackCmd(),
@@ -154,6 +172,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		if msg.Width > 60 {
+			m.textInput.Width = 50
+		} else {
+			m.textInput.Width = msg.Width - 10
+		}
 
 		horizontalPadding := 4
 		contentWidth := msg.Width - (horizontalPadding * 2)
@@ -244,7 +268,70 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
+		if m.showingHelp {
+			m.showingHelp = false
+			m.commandError = ""
+			return m, nil
+		}
+
+		if m.showingCommand {
+			switch msg.Type {
+			case tea.KeyEnter:
+				inputValue := m.textInput.Value()
+				validatedCmd, err := commands.ValidateCommand(inputValue)
+				if err != nil {
+					m.commandError = err.Error()
+					m.textInput.SetValue("")
+					return m, nil
+				}
+
+				if validatedCmd.Action == "help" {
+					m.showingHelp = true
+					m.commandError = ""
+					m.textInput.SetValue("")
+					return m, nil
+				}
+
+				if validatedCmd.Action == "quit" {
+					return m, tea.Quit
+				}
+
+				if validatedCmd.Action == "start" || validatedCmd.Action == "reset" {
+					m.command = validatedCmd.Action
+					m.submitted = true
+					m.commandError = ""
+					return m, nil
+				}
+
+				m.commandError = fmt.Sprintf("Unknown command action: %s", validatedCmd.Action)
+				m.textInput.SetValue("")
+				return m, nil
+			case tea.KeyCtrlC, tea.KeyEsc:
+				if msg.Type == tea.KeyEsc {
+					return m, nil
+				}
+				return m, tea.Quit
+			}
+
+			if msg.String() == "'" {
+				m.showingCommand = false
+				m.commandError = ""
+				m.textInput.SetValue("")
+				return m, nil
+			}
+
+			var cmd tea.Cmd
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
 		key := msg.String()
+
+		if key == "c" {
+			m.showingCommand = true
+			m.textInput.Focus()
+			return m, nil
+		}
 
 		if key == "w" || key == "s" {
 			if m.isDev {
@@ -435,11 +522,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	if m.showingHelp {
+		helpText := commands.GetHelpText()
+		helpContent := fmt.Sprintf("%s\n\nPress any key to return to statistics", helpText)
+
+		centerStyle := lipgloss.NewStyle().
+			Width(m.width).
+			Height(m.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Padding(1, 2)
+
+		return centerStyle.Render(styles.NeutralStyle.Render(helpContent))
+	}
+
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
-	var content string
+	var commandHeader string
+	if m.showingCommand {
+		if m.commandError != "" {
+			errorText := fmt.Sprintf("Error: %s", m.commandError)
+			commandHeader = fmt.Sprintf("%s\nCommand: %s\n%s",
+				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
+				m.textInput.View(),
+				styles.QuitStyle.Render("Press ' to exit command mode, Esc to go back to start"))
+		} else {
+			commandHeader = fmt.Sprintf("Command: %s\n%s",
+				m.textInput.View(),
+				styles.QuitStyle.Render("Press ' to exit command mode, Esc to go back to start"))
+		}
+	} else {
+		navHelp := "Use w/s to navigate tables, c for commands, q/Esc to go back"
+		commandHeader = styles.QuitStyle.Render(navHelp)
+	}
 
+	commandHeaderCentered := lipgloss.NewStyle().
+		Width(contentWidth).
+		Align(lipgloss.Center).
+		Render(commandHeader)
+
+	var mainContent string
 	if m.isDev && m.selectedFolder != "" {
 		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedFolder)
 		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
@@ -458,10 +580,8 @@ func (m Model) View() string {
 		jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
 		slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-		content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
+		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 	} else {
-		generalHeader := "Your Statistics"
-		header := styles.WelcomeStyle.Width(contentWidth).Render(generalHeader)
 
 		totalIssues := m.jiraTable.TotalIssues()
 		dateInfo := fmt.Sprintf("%d JIRA issues, %d Slack messages (coming soon) since %s", totalIssues, 0, m.selectedDate.Format("January 2, 2006"))
@@ -473,8 +593,31 @@ func (m Model) View() string {
 		jiraViewStyled := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
 		slackViewStyled := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-		content = header + "\n" + dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
+		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
 	}
 
-	return styles.DocStyle.Width(m.width).Render(content)
+	fullContent := commandHeaderCentered + "\n" + mainContent
+
+	centerStyle := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Padding(1, 2)
+
+	return centerStyle.Render(fullContent)
+}
+
+func (m Model) GetCommand() string {
+	return m.command
+}
+
+func (m Model) HasCommand() bool {
+	return m.submitted
+}
+
+func (m *Model) ResetCommand() {
+	m.submitted = false
+	m.command = ""
+	m.commandError = ""
+	m.textInput.SetValue("")
 }

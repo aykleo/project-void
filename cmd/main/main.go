@@ -6,6 +6,7 @@ import (
 
 	"project-void/internal/ui/home"
 	"project-void/internal/ui/statistics"
+	"project-void/internal/ui/welcome"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
@@ -14,35 +15,48 @@ import (
 type AppState int
 
 const (
-	HomeState AppState = iota
+	WelcomeState AppState = iota
+	HomeState
 	StatisticsState
 )
 
 type MainModel struct {
-	state      AppState
-	homeModel  home.Model
-	statsModel statistics.Model
-	width      int
-	height     int
+	state        AppState
+	welcomeModel welcome.Model
+	homeModel    home.Model
+	statsModel   statistics.Model
+	width        int
+	height       int
 }
 
 func InitialMainModel() MainModel {
 	return MainModel{
-		state:     HomeState,
-		homeModel: home.InitialModel(),
+		state:        WelcomeState,
+		welcomeModel: welcome.InitialModel(),
+		homeModel:    home.InitialModel(),
 	}
 }
 
 func (m MainModel) Init() tea.Cmd {
-	return m.homeModel.Init()
+	return m.welcomeModel.Init()
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "esc":
-			return m, tea.Quit
+		case "esc":
+			if m.state == WelcomeState {
+				return m, tea.Quit
+			}
+			m.state = WelcomeState
+			if m.width > 0 && m.height > 0 {
+				windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+				updatedWelcome, cmd := m.welcomeModel.Update(windowSizeMsg)
+				m.welcomeModel = updatedWelcome.(welcome.Model)
+				return m, cmd
+			}
+			return m, nil
 		}
 	case home.ProceedMsg:
 		if m.homeModel.ShouldProceed() {
@@ -71,6 +85,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		switch m.state {
+		case WelcomeState:
+			updatedWelcome, cmd := m.welcomeModel.Update(msg)
+			m.welcomeModel = updatedWelcome.(welcome.Model)
+			return m, cmd
 		case HomeState:
 			updatedHome, cmd := m.homeModel.Update(msg)
 			m.homeModel = updatedHome.(home.Model)
@@ -83,6 +101,34 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
+	case WelcomeState:
+		updatedWelcome, cmd := m.welcomeModel.Update(msg)
+		m.welcomeModel = updatedWelcome.(welcome.Model)
+
+		if m.welcomeModel.HasCommand() {
+			command := m.welcomeModel.GetCommand()
+			m.welcomeModel.ResetCommand()
+
+			switch command {
+			case "start":
+				m.state = HomeState
+				if m.width > 0 && m.height > 0 {
+					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedHome, cmd := m.homeModel.Update(windowSizeMsg)
+					m.homeModel = updatedHome.(home.Model)
+					return m, cmd
+				}
+				return m, nil
+			case "reset":
+				return m, nil
+			case "quit":
+				return m, tea.Quit
+			default:
+				return m, nil
+			}
+		}
+
+		return m, cmd
 	case HomeState:
 		updatedHome, cmd := m.homeModel.Update(msg)
 		m.homeModel = updatedHome.(home.Model)
@@ -90,6 +136,35 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatisticsState:
 		updatedStats, cmd := m.statsModel.Update(msg)
 		m.statsModel = updatedStats.(statistics.Model)
+
+		if m.statsModel.HasCommand() {
+			command := m.statsModel.GetCommand()
+			m.statsModel.ResetCommand()
+
+			switch command {
+			case "start":
+				m.state = HomeState
+				if m.width > 0 && m.height > 0 {
+					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedHome, cmd := m.homeModel.Update(windowSizeMsg)
+					m.homeModel = updatedHome.(home.Model)
+					return m, cmd
+				}
+				return m, nil
+			case "reset":
+				m.state = WelcomeState
+				if m.width > 0 && m.height > 0 {
+					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedWelcome, cmd := m.welcomeModel.Update(windowSizeMsg)
+					m.welcomeModel = updatedWelcome.(welcome.Model)
+					return m, cmd
+				}
+				return m, nil
+			default:
+				return m, nil
+			}
+		}
+
 		return m, cmd
 	}
 
@@ -98,6 +173,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m MainModel) View() string {
 	switch m.state {
+	case WelcomeState:
+		return m.welcomeModel.View()
 	case HomeState:
 		return m.homeModel.View()
 	case StatisticsState:

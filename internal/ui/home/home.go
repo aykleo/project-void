@@ -3,6 +3,7 @@ package home
 import (
 	"fmt"
 	"os"
+	"project-void/internal/commands"
 	datepicker "project-void/internal/ui/home/date-picker"
 	folderpicker "project-void/internal/ui/home/folder-picker"
 	"project-void/internal/ui/home/tabs"
@@ -10,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type ProceedMsg struct{}
@@ -19,6 +22,7 @@ type Model struct {
 	datePicker        datepicker.Model
 	folderPicker      folderpicker.Model
 	tabs              tabs.Model
+	textInput         textinput.Model
 	selectedDate      *time.Time
 	selectedFolder    string
 	width             int
@@ -27,20 +31,29 @@ type Model struct {
 	isDev             bool
 	needsConfirmation bool
 	shouldProceed     bool
+	commandError      string
+	showingHelp       bool
 }
 
 func InitialModel() Model {
+	ti := textinput.New()
+	ti.Placeholder = "Enter a command (e.g., dev or help)..."
+	ti.Focus()
+	ti.CharLimit = 256
+	ti.Width = 50
+
 	tabNames := []string{}
 	tabContent := []string{}
 	return Model{
 		datePicker:   datepicker.InitialModel(),
 		folderPicker: folderpicker.InitialModel(),
 		tabs:         tabs.InitialModel(tabNames, tabContent),
+		textInput:    ti,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.datePicker.Init(), m.folderPicker.Init())
+	return tea.Batch(m.datePicker.Init(), m.folderPicker.Init(), textinput.Blink)
 }
 
 func (m Model) UpdateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -54,6 +67,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		if msg.Width > 60 {
+			m.textInput.Width = 50
+		} else {
+			m.textInput.Width = msg.Width - 10
+		}
 
 		horizontalPadding := 4
 		contentWidth := msg.Width - (horizontalPadding * 2)
@@ -71,32 +90,75 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Batch(tabCmd, fpCmd, dpCmd)
 	case tea.KeyMsg:
+		if m.showingHelp {
+			m.showingHelp = false
+			m.commandError = ""
+			return m, nil
+		}
 
 		if !m.devModeSelected {
-			key := strings.ToLower(msg.String())
-			if key == "y" || key == "yes" {
-				m.isDev = true
-				m.devModeSelected = true
-				return m, nil
-			} else if key == "n" || key == "no" {
-				m.isDev = false
-				m.devModeSelected = true
-				username := os.Getenv("JIRA_USERNAME")
-				tabNames := []string{"Jira cards", "Slack messages"}
-				tabContent := []string{
-					fmt.Sprintf("Jira cards for %s", username),
-					"This is the content of the Slack messages tab",
+			switch msg.Type {
+			case tea.KeyEnter:
+				inputValue := m.textInput.Value()
+				validatedCmd, err := commands.ValidateCommand(inputValue)
+				if err != nil {
+					m.commandError = err.Error()
+					m.textInput.SetValue("")
+					return m, nil
 				}
-				m.tabs = tabs.InitialModel(tabNames, tabContent)
 
-				if m.width > 0 {
-					contentSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
-					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
-					m.tabs = updatedTabs.(tabs.Model)
+				if validatedCmd.Action == "help" {
+					m.showingHelp = true
+					m.commandError = ""
+					m.textInput.SetValue("")
+					return m, nil
 				}
+
+				if validatedCmd.Action == "reset" {
+					m.commandError = "Use Esc or q to go back to welcome screen"
+					m.textInput.SetValue("")
+					return m, nil
+				}
+
+				if validatedCmd.Action == "quit" {
+					return m, tea.Quit
+				}
+
+				if validatedCmd.Action == "dev" {
+					m.isDev = true
+					m.devModeSelected = true
+					m.commandError = ""
+					return m, nil
+				} else if validatedCmd.Action == "nodev" {
+					m.isDev = false
+					m.devModeSelected = true
+					username := os.Getenv("JIRA_USERNAME")
+					tabNames := []string{"Jira cards", "Slack messages"}
+					tabContent := []string{
+						fmt.Sprintf("Jira cards for %s", username),
+						"This is the content of the Slack messages tab",
+					}
+					m.tabs = tabs.InitialModel(tabNames, tabContent)
+
+					if m.width > 0 {
+						contentSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+						updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+						m.tabs = updatedTabs.(tabs.Model)
+					}
+					m.commandError = ""
+					return m, nil
+				}
+
+				m.commandError = fmt.Sprintf("Unknown command action: %s", validatedCmd.Action)
+				m.textInput.SetValue("")
 				return m, nil
+			case tea.KeyCtrlC, tea.KeyEsc:
+				return m, tea.Quit
 			}
-			return m, nil
+
+			var cmd tea.Cmd
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
 		}
 
 		if m.needsConfirmation {
@@ -223,25 +285,46 @@ func (m Model) View() string {
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
-	welcomeMessage := "Welcome to Project Void"
-	welcome := styles.WelcomeStyle.Width(contentWidth).Render(welcomeMessage)
-
-	quitMessage := "Q or Esc to quit"
-	quit := styles.QuitStyle.Width(contentWidth).Render(quitMessage)
-
 	var content string
 
+	if m.showingHelp {
+		helpText := commands.GetHelpText()
+		helpContent := fmt.Sprintf("%s\n\nPress any key to return to command prompt", helpText)
+
+		centerStyle := lipgloss.NewStyle().
+			Width(m.width).
+			Height(m.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Padding(1, 2)
+
+		return centerStyle.Render(styles.NeutralStyle.Render(helpContent))
+	}
+
 	if !m.devModeSelected {
-		devPrompt := "Activate dev mode? (y/n)"
-		devPrompt = styles.NeutralStyle.Width(contentWidth).Render(devPrompt)
-		content = welcome + "\n" + quit + "\n\n" + devPrompt
-		return styles.DocStyle.Width(m.width).Render(content)
+		var inputSection string
+		if m.commandError != "" {
+			errorText := fmt.Sprintf("Error: %s\n\n", m.commandError)
+			inputSection = fmt.Sprintf("%sCommand: %s\n\n%s\n\n%s",
+				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
+				lipgloss.NewStyle().Align(lipgloss.Center).Render(m.textInput.View()),
+				styles.NeutralStyle.Render("Try 'devmode' to activate dev mode, 'nodev' to continue without dev mode, or 'help' for all commands"),
+				styles.QuitStyle.Render("Press Ctrl+C or Esc to quit"))
+		} else {
+			helpText := "Type 'dev' to activate dev mode, 'nodev' to continue without dev mode, or 'help' for all commands"
+			inputSection = fmt.Sprintf("Command: %s\n\n%s\n\n%s",
+				lipgloss.NewStyle().Align(lipgloss.Center).Render(m.textInput.View()),
+				styles.NeutralStyle.Render(helpText),
+				styles.QuitStyle.Render("Press Ctrl+C or Esc to quit"))
+		}
+
+		content = inputSection
+		return styles.DocStyle.Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(content)
 	}
 
 	if m.isDev && m.selectedFolder == "" {
 		folderPicker := styles.FolderPickerStyle.Width(contentWidth).Render(m.folderPicker.View())
-		content = welcome + "\n" + quit + "\n\n" + folderPicker
-		return styles.DocStyle.Width(m.width).Render(content)
+		content = folderPicker
+		return styles.DocStyle.Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(content)
 	}
 
 	var folderInfo string
@@ -259,11 +342,11 @@ func (m Model) View() string {
 		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(initialDateMessage)
 
 		if m.isDev {
-			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + prompt + "\n" + dateInfo
+			content = folderInfo + "\n\n" + prompt + "\n" + dateInfo
 		} else {
-			content = welcome + "\n" + quit + "\n\n" + prompt + "\n" + dateInfo
+			content = prompt + "\n" + dateInfo
 		}
-		return styles.DocStyle.Width(m.width).Render(content)
+		return styles.DocStyle.Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(content)
 	}
 
 	selectedDateMessage := fmt.Sprint(m.selectedDate.Format("January 2, 2006"))
@@ -282,19 +365,19 @@ func (m Model) View() string {
 
 	if m.isDev {
 		if m.needsConfirmation {
-			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+			content = dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
 		} else {
-			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
+			content = dateInfo + "\n\n" + tabsView
 		}
 	} else {
 		if m.needsConfirmation {
-			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+			content = dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
 		} else {
-			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
+			content = dateInfo + "\n\n" + tabsView
 		}
 	}
 
-	return styles.DocStyle.Width(m.width).Render(content)
+	return styles.DocStyle.Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(content)
 }
 
 func (m Model) ShouldProceed() bool {
