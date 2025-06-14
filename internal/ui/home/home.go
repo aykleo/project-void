@@ -267,6 +267,10 @@ func (m Model) View() string {
 	selectedDateMessage := fmt.Sprint(m.selectedDate.Format("January 2, 2006"))
 	dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(selectedDateMessage)
 
+	contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: m.height}
+	updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+	m.tabs = updatedTabs.(tabs.Model)
+
 	tabsView := m.tabs.View()
 
 	var confirmationPrompt string
