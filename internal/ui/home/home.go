@@ -219,15 +219,9 @@ func (m Model) View() string {
 		return styles.DocStyle.Width(m.width).Render(content)
 	}
 
-	var devStatusRendered string
-	if m.isDev {
-		devStatus := fmt.Sprintln("Dev mode")
-		devStatusRendered = styles.WelcomeStyle.Width(contentWidth).Render(devStatus)
-	}
-
 	if m.isDev && m.selectedFolder == "" {
 		folderPicker := styles.FolderPickerStyle.Width(contentWidth).Render(m.folderPicker.View())
-		content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderPicker
+		content = welcome + "\n" + quit + "\n\n" + folderPicker
 		return styles.DocStyle.Width(m.width).Render(content)
 	}
 
@@ -246,7 +240,7 @@ func (m Model) View() string {
 		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(initialDateMessage)
 
 		if m.isDev {
-			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + prompt + "\n" + dateInfo
+			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + prompt + "\n" + dateInfo
 		} else {
 			content = welcome + "\n" + quit + "\n\n" + prompt + "\n" + dateInfo
 		}
@@ -265,9 +259,9 @@ func (m Model) View() string {
 
 	if m.isDev {
 		if m.needsConfirmation {
-			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
 		} else {
-			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
+			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
 		}
 	} else {
 		if m.needsConfirmation {
