@@ -15,7 +15,7 @@ var (
 			Align(lipgloss.Center)
 	focusedStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(styles.HighlightColor). // blue
+			BorderForeground(styles.HighlightColor).
 			Align(lipgloss.Center)
 )
 

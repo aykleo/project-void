@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
@@ -22,7 +23,7 @@ type Model struct {
 	height         int
 	loaded         bool
 	loadError      string
-	focusedTable   int // 0: commits (dev) or jira (non-dev), 1: jira (dev) or slack (non-dev), 2: slack (dev)
+	focusedTable   int
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -73,23 +74,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		horizontalPadding := 4
 		contentWidth := msg.Width - (horizontalPadding * 2)
 
-		// Divide the available height among the three tables
-		availableHeight := msg.Height - 12 // leave room for headers, padding, etc.
+		availableHeight := msg.Height - 12
 		tableCount := 3
 		tableHeight := availableHeight / tableCount
 		if tableHeight < 5 {
 			tableHeight = 5
 		}
 
-		tableMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
-		updatedCommits, cmd1 := m.commitsTable.Update(tableMsg)
-		updatedJira, cmd2 := m.jiraTable.Update(tableMsg)
-		updatedSlack, cmd3 := m.slackTable.Update(tableMsg)
-		m.commitsTable = updatedCommits.(commitstable.Model)
-		m.jiraTable = updatedJira.(jiratable.Model)
-		m.slackTable = updatedSlack.(slacktable.Model)
+		if m.isDev {
 
-		// Focus management: keep only the focused table focused and set border color
+			commitsMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
+			updatedCommits, _ := m.commitsTable.Update(commitsMsg)
+			m.commitsTable = updatedCommits.(commitstable.Model)
+
+			jiraWidth := contentWidth / 2
+			jiraMsg := tea.WindowSizeMsg{Width: jiraWidth, Height: tableHeight}
+			slackMsg := tea.WindowSizeMsg{Width: contentWidth - jiraWidth, Height: tableHeight}
+			updatedJira, _ := m.jiraTable.Update(jiraMsg)
+			updatedSlack, _ := m.slackTable.Update(slackMsg)
+			m.jiraTable = updatedJira.(jiratable.Model)
+			m.slackTable = updatedSlack.(slacktable.Model)
+		} else {
+			jiraWidth := contentWidth / 2
+			jiraMsg := tea.WindowSizeMsg{Width: jiraWidth, Height: tableHeight}
+			slackMsg := tea.WindowSizeMsg{Width: contentWidth - jiraWidth, Height: tableHeight}
+			updatedJira, _ := m.jiraTable.Update(jiraMsg)
+			updatedSlack, _ := m.slackTable.Update(slackMsg)
+			m.jiraTable = updatedJira.(jiratable.Model)
+			m.slackTable = updatedSlack.(slacktable.Model)
+		}
+
 		if m.isDev {
 			if m.focusedTable == 0 {
 				m.commitsTable.Focus()
@@ -126,26 +140,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.slackTable.SetFocusedStyle()
 			}
 		}
-		return m, tea.Batch(cmd1, cmd2, cmd3)
+		return m, tea.Batch()
 
 	case tea.KeyMsg:
 		key := msg.String()
-		// Table focus switching
+
 		if key == "w" || key == "s" {
 			if m.isDev {
 				if key == "w" {
-					m.focusedTable = (m.focusedTable + 2) % 3 // up
+					m.focusedTable = (m.focusedTable + 2) % 3
 				} else {
-					m.focusedTable = (m.focusedTable + 1) % 3 // down
+					m.focusedTable = (m.focusedTable + 1) % 3
 				}
 			} else {
 				if key == "w" {
-					m.focusedTable = (m.focusedTable + 1) % 2 // up (2 tables)
+					m.focusedTable = (m.focusedTable + 1) % 2
 				} else {
-					m.focusedTable = (m.focusedTable + 1) % 2 // down (2 tables)
+					m.focusedTable = (m.focusedTable + 1) % 2
 				}
 			}
-			// Set focus/blur after switching
+
 			if m.isDev {
 				if m.focusedTable == 0 {
 					m.commitsTable.Focus()
@@ -184,7 +198,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		// Only send row navigation keys to the focused table
+
 		rowKeys := map[string]bool{"up": true, "down": true, "k": true, "j": true, "pgup": true, "pgdown": true, "home": true, "end": true}
 		if rowKeys[key] {
 			if m.isDev {
@@ -213,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		// For other keys, update all tables as before
+
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
 		updatedSlack, cmd3 := m.slackTable.Update(msg)
@@ -272,9 +286,11 @@ func (m Model) View() string {
 			jiraView := m.jiraTable.View()
 			slackView := m.slackTable.View()
 			tableViewCentered := styles.NeutralStyle.Width(contentWidth).Render(tableView)
-			jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
-			slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
-			content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
+
+			joinedJiraSlack := lipgloss.JoinHorizontal(lipgloss.Top, jiraView, slackView)
+			joinedJiraSlackCentered := styles.NeutralStyle.Width(contentWidth).Render(joinedJiraSlack)
+
+			content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + joinedJiraSlackCentered
 		}
 	} else {
 		generalHeader := "Statistics Dashboard"
@@ -285,10 +301,11 @@ func (m Model) View() string {
 
 		jiraView := m.jiraTable.View()
 		slackView := m.slackTable.View()
-		jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
-		slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-		content = header + "\n" + dateInfoRendered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
+		joinedTables := lipgloss.JoinHorizontal(lipgloss.Top, jiraView, slackView)
+		joinedTablesStyled := styles.NeutralStyle.Width(contentWidth).Render(joinedTables)
+
+		content = header + "\n" + dateInfoRendered + "\n\n" + joinedTablesStyled
 	}
 
 	return styles.DocStyle.Width(m.width).Render(content)
