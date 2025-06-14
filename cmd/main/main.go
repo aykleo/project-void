@@ -8,6 +8,7 @@ import (
 	"project-void/internal/ui/statistics"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joho/godotenv"
 )
 
 type AppState int
@@ -106,6 +107,13 @@ func (m MainModel) View() string {
 }
 
 func main() {
+
+	err := godotenv.Load()
+	if err != nil && !os.IsNotExist(err) {
+		fmt.Printf("Error loading .env file: %v\n", err)
+		os.Exit(1)
+	}
+
 	m := InitialMainModel()
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {

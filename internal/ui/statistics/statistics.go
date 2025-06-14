@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"fmt"
+	"project-void/internal/jira"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
 	slacktable "project-void/internal/ui/statistics/slack-table"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
@@ -27,10 +27,28 @@ type Model struct {
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
+	commitsTable := commitstable.InitialModel()
+	jiraTable := jiratable.InitialModel()
+	slackTable := slacktable.InitialModel()
+
+	if isDev {
+		commitsTable.Focus()
+		commitsTable.SetFocusedStyle()
+		jiraTable.Blur()
+		jiraTable.SetBlurredStyle()
+		slackTable.Blur()
+		slackTable.SetBlurredStyle()
+	} else {
+		jiraTable.Focus()
+		jiraTable.SetFocusedStyle()
+		slackTable.Blur()
+		slackTable.SetBlurredStyle()
+	}
+
 	return Model{
-		commitsTable:   commitstable.InitialModel(),
-		jiraTable:      jiratable.InitialModel(),
-		slackTable:     slacktable.InitialModel(),
+		commitsTable:   commitsTable,
+		jiraTable:      jiraTable,
+		slackTable:     slackTable,
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
@@ -54,6 +72,25 @@ func (m Model) Init() tea.Cmd {
 			}
 			return LoadedMsg{CommitsTable: m.commitsTable}
 		},
+		func() tea.Msg {
+			config, err := jira.LoadConfig()
+			if err != nil {
+				return JiraLoadErrorMsg{Error: fmt.Sprintf("Failed to load JIRA config: %v", err)}
+			}
+
+			client := jira.NewClientFromConfig(config)
+
+			if err := client.TestConnection(); err != nil {
+				return JiraLoadErrorMsg{Error: fmt.Sprintf("JIRA connection failed: %v", err)}
+			}
+
+			var jiraTable jiratable.Model = m.jiraTable
+			err = jiraTable.LoadIssues(client, m.selectedDate, config)
+			if err != nil {
+				return JiraLoadErrorMsg{Error: fmt.Sprintf("Failed to load JIRA issues: %v", err)}
+			}
+			return JiraLoadedMsg{JiraTable: jiraTable}
+		},
 	)
 }
 
@@ -62,6 +99,14 @@ type LoadedMsg struct {
 }
 
 type LoadErrorMsg struct {
+	Error string
+}
+
+type JiraLoadedMsg struct {
+	JiraTable jiratable.Model
+}
+
+type JiraLoadErrorMsg struct {
 	Error string
 }
 
@@ -75,29 +120,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentWidth := msg.Width - (horizontalPadding * 2)
 
 		availableHeight := msg.Height - 12
-		tableCount := 3
-		tableHeight := availableHeight / tableCount
-		if tableHeight < 5 {
-			tableHeight = 5
-		}
 
 		if m.isDev {
+			tableHeight := availableHeight / 3
+			if tableHeight < 5 {
+				tableHeight = 5
+			}
 
 			commitsMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
 			updatedCommits, _ := m.commitsTable.Update(commitsMsg)
 			m.commitsTable = updatedCommits.(commitstable.Model)
 
-			jiraWidth := contentWidth / 2
-			jiraMsg := tea.WindowSizeMsg{Width: jiraWidth, Height: tableHeight}
-			slackMsg := tea.WindowSizeMsg{Width: contentWidth - jiraWidth, Height: tableHeight}
+			jiraMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
+			slackMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
 			updatedJira, _ := m.jiraTable.Update(jiraMsg)
 			updatedSlack, _ := m.slackTable.Update(slackMsg)
 			m.jiraTable = updatedJira.(jiratable.Model)
 			m.slackTable = updatedSlack.(slacktable.Model)
 		} else {
-			jiraWidth := contentWidth / 2
-			jiraMsg := tea.WindowSizeMsg{Width: jiraWidth, Height: tableHeight}
-			slackMsg := tea.WindowSizeMsg{Width: contentWidth - jiraWidth, Height: tableHeight}
+			tableHeight := availableHeight / 2
+			if tableHeight < 5 {
+				tableHeight = 5
+			}
+
+			jiraMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
+			slackMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
 			updatedJira, _ := m.jiraTable.Update(jiraMsg)
 			updatedSlack, _ := m.slackTable.Update(slackMsg)
 			m.jiraTable = updatedJira.(jiratable.Model)
@@ -246,6 +293,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadError = msg.Error
 		return m, nil
 
+	case JiraLoadedMsg:
+		m.jiraTable = msg.JiraTable
+		return m, nil
+
+	case JiraLoadErrorMsg:
+		return m, nil
+
 	default:
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
@@ -264,13 +318,13 @@ func (m Model) View() string {
 	var content string
 
 	if m.isDev && m.selectedFolder != "" {
-
 		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedFolder)
 		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
 
 		totalCommits := m.commitsTable.TotalCommits()
+		totalIssues := m.jiraTable.TotalIssues()
 
-		dateInfo := fmt.Sprintf("%d commits since %s", totalCommits, m.selectedDate.Format("January 2, 2006"))
+		dateInfo := fmt.Sprintf("%d commits, %d JIRA issues since %s", totalCommits, totalIssues, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		if m.loadError != "" {
@@ -278,34 +332,35 @@ func (m Model) View() string {
 			errorRendered := styles.NeutralStyle.Width(contentWidth).Render(errorInfo)
 			content = header + "\n" + dateInfoRendered + "\n\n" + errorRendered
 		} else if !m.loaded {
-			loadingInfo := "Loading commits..."
+			loadingInfo := "Loading commits and JIRA issues..."
 			loadingRendered := styles.NeutralStyle.Width(contentWidth).Render(loadingInfo)
 			content = header + "\n" + dateInfoRendered + "\n\n" + loadingRendered
 		} else {
 			tableView := m.commitsTable.View()
 			jiraView := m.jiraTable.View()
 			slackView := m.slackTable.View()
+
 			tableViewCentered := styles.NeutralStyle.Width(contentWidth).Render(tableView)
+			jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
+			slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-			joinedJiraSlack := lipgloss.JoinHorizontal(lipgloss.Top, jiraView, slackView)
-			joinedJiraSlackCentered := styles.NeutralStyle.Width(contentWidth).Render(joinedJiraSlack)
-
-			content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + joinedJiraSlackCentered
+			content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 		}
 	} else {
 		generalHeader := "Statistics Dashboard"
 		header := styles.WelcomeStyle.Width(contentWidth).Render(generalHeader)
 
-		dateInfo := fmt.Sprintf("Date: %s", m.selectedDate.Format("January 2, 2006"))
+		totalIssues := m.jiraTable.TotalIssues()
+		dateInfo := fmt.Sprintf("%d JIRA issues since %s", totalIssues, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		jiraView := m.jiraTable.View()
 		slackView := m.slackTable.View()
 
-		joinedTables := lipgloss.JoinHorizontal(lipgloss.Top, jiraView, slackView)
-		joinedTablesStyled := styles.NeutralStyle.Width(contentWidth).Render(joinedTables)
+		jiraViewStyled := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
+		slackViewStyled := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-		content = header + "\n" + dateInfoRendered + "\n\n" + joinedTablesStyled
+		content = header + "\n" + dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
 	}
 
 	return styles.DocStyle.Width(m.width).Render(content)

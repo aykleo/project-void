@@ -1,7 +1,11 @@
 package jiratable
 
 import (
+	"fmt"
+	"project-void/internal/jira"
 	"project-void/internal/ui/styles"
+	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,20 +33,16 @@ type Model struct {
 
 func InitialModel() Model {
 	columns := []table.Column{
-		{Title: "Issue", Width: 8},
-		{Title: "Status", Width: 8},
-		{Title: "Assignee", Width: 10},
-	}
-
-	rows := []table.Row{
-		{"PV-101", "In Progress", "Alice"},
-		{"PV-102", "Done", "Bob"},
-		{"PV-103", "To Do", "Charlie"},
+		{Title: "Issue", Width: 12},
+		{Title: "Status", Width: 15},
+		{Title: "Action", Width: 12},
+		{Title: "Date", Width: 10},
+		{Title: "Summary", Width: 40},
 	}
 
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithRows(rows),
+		table.WithRows([]table.Row{}),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
@@ -83,16 +83,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-			issueWidth := 8
-			statusWidth := 8
-			assigneeWidth := m.width - issueWidth - statusWidth - 10
-			if assigneeWidth < 10 {
-				assigneeWidth = 10
+
+			issueWidth := 12
+			statusWidth := 15
+			actionWidth := 12
+			dateWidth := 10
+
+			usedWidth := issueWidth + statusWidth + actionWidth + dateWidth + 10
+			summaryWidth := m.width - usedWidth
+
+			if summaryWidth < 20 {
+				summaryWidth = 20
 			}
+			if issueWidth < 8 {
+				issueWidth = 8
+			}
+			if statusWidth < 10 {
+				statusWidth = 10
+			}
+			if actionWidth < 8 {
+				actionWidth = 8
+			}
+			if dateWidth < 8 {
+				dateWidth = 8
+			}
+
 			columns := []table.Column{
 				{Title: "Issue", Width: issueWidth},
 				{Title: "Status", Width: statusWidth},
-				{Title: "Assignee", Width: assigneeWidth},
+				{Title: "Action", Width: actionWidth},
+				{Title: "Date", Width: dateWidth},
+				{Title: "Summary", Width: summaryWidth},
 			}
 			m.table.SetColumns(columns)
 		}
@@ -141,4 +162,52 @@ func (m *Model) SetBlurredStyle() {
 		Background(lipgloss.NoColor{})
 	m.table.SetStyles(m.styles)
 	m.borderFocused = false
+}
+
+func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config *jira.Config) error {
+	issues, err := jiraClient.GetIssuesSince(since, config)
+	if err != nil {
+		return fmt.Errorf("failed to load issues: %w", err)
+	}
+
+	rows := make([]table.Row, len(issues))
+	for i, issue := range issues {
+		action := issue.UserAction
+		if len(action) > 11 {
+			action = action[:8] + "..."
+		}
+
+		status := issue.Status
+		if len(status) > 14 {
+			status = status[:11] + "..."
+		}
+
+		actionDate := issue.ActionDate.Format("2006-01-02")
+
+		summary := strings.ReplaceAll(issue.Summary, "\n", " ")
+		summary = strings.TrimSpace(summary)
+		maxSummaryLength := 80
+		if len(summary) > maxSummaryLength {
+			summary = summary[:maxSummaryLength-3] + "..."
+		}
+
+		rows[i] = table.Row{
+			issue.Key,
+			status,
+			action,
+			actionDate,
+			summary,
+		}
+	}
+
+	m.table.SetRows(rows)
+	return nil
+}
+
+func (m Model) GetSelectedIssue() table.Row {
+	return m.table.SelectedRow()
+}
+
+func (m Model) TotalIssues() int {
+	return len(m.table.Rows())
 }

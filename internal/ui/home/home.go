@@ -2,6 +2,7 @@ package home
 
 import (
 	"fmt"
+	"os"
 	datepicker "project-void/internal/ui/home/date-picker"
 	folderpicker "project-void/internal/ui/home/folder-picker"
 	"project-void/internal/ui/home/tabs"
@@ -80,9 +81,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if key == "n" || key == "no" {
 				m.isDev = false
 				m.devModeSelected = true
+				username := os.Getenv("JIRA_USERNAME")
 				tabNames := []string{"Jira cards", "Slack messages"}
 				tabContent := []string{
-					"This is the content of the Jira cards tab",
+					fmt.Sprintf("Jira cards for %s", username),
 					"This is the content of the Slack messages tab",
 				}
 				m.tabs = tabs.InitialModel(tabNames, tabContent)
@@ -118,11 +120,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.folderPicker.GetSelectedFolder() != "" {
 				m.selectedFolder = m.folderPicker.GetSelectedFolder()
-
+				username := os.Getenv("JIRA_USERNAME")
 				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
 				tabContent := []string{
 					fmt.Sprintf("Git commits for %s", m.selectedFolder),
-					"This is the content of the Jira cards tab",
+					fmt.Sprintf("Jira cards for %s", username),
 					"This is the content of the Slack messages tab",
 				}
 				m.tabs = tabs.InitialModel(tabNames, tabContent)
@@ -174,11 +176,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.folderPicker.GetSelectedFolder() != "" {
 				m.selectedFolder = m.folderPicker.GetSelectedFolder()
-
+				username := os.Getenv("JIRA_USERNAME")
 				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
 				tabContent := []string{
 					fmt.Sprintf("Repo: %s", m.selectedFolder),
-					"This is the content of the Jira cards tab",
+					fmt.Sprintf("Jira cards for %s", username),
 					"This is the content of the Slack messages tab",
 				}
 				m.tabs = tabs.InitialModel(tabNames, tabContent)
