@@ -3,6 +3,8 @@ package statistics
 import (
 	"fmt"
 	commitstable "project-void/internal/ui/statistics/commits-table"
+	jiratable "project-void/internal/ui/statistics/jira-table"
+	slacktable "project-void/internal/ui/statistics/slack-table"
 	"project-void/internal/ui/styles"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 
 type Model struct {
 	commitsTable   commitstable.Model
+	jiraTable      jiratable.Model
+	slackTable     slacktable.Model
 	selectedFolder string
 	selectedDate   time.Time
 	isDev          bool
@@ -23,6 +27,8 @@ type Model struct {
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
 	return Model{
 		commitsTable:   commitstable.InitialModel(),
+		jiraTable:      jiratable.InitialModel(),
+		slackTable:     slacktable.InitialModel(),
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
@@ -32,6 +38,8 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.commitsTable.Init(),
+		m.jiraTable.Init(),
+		m.slackTable.Init(),
 		func() tea.Msg {
 			if m.isDev && m.selectedFolder != "" {
 				var commitsTable commitstable.Model = m.commitsTable
@@ -63,16 +71,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		horizontalPadding := 4
 		contentWidth := msg.Width - (horizontalPadding * 2)
 
-		tableHeight := msg.Height - 6
+		// Divide the available height among the three tables
+		availableHeight := msg.Height - 12 // leave room for headers, padding, etc.
+		tableCount := 3
+		tableHeight := availableHeight / tableCount
 		if tableHeight < 5 {
 			tableHeight = 5
 		}
 
 		tableMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
-		updatedTable, cmd := m.commitsTable.Update(tableMsg)
-		m.commitsTable = updatedTable.(commitstable.Model)
+		updatedCommits, cmd1 := m.commitsTable.Update(tableMsg)
+		updatedJira, cmd2 := m.jiraTable.Update(tableMsg)
+		updatedSlack, cmd3 := m.slackTable.Update(tableMsg)
+		m.commitsTable = updatedCommits.(commitstable.Model)
+		m.jiraTable = updatedJira.(jiratable.Model)
+		m.slackTable = updatedSlack.(slacktable.Model)
 
-		return m, cmd
+		return m, tea.Batch(cmd1, cmd2, cmd3)
 
 	case LoadedMsg:
 		m.loaded = true
@@ -85,21 +100,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		updatedTable, cmd := m.commitsTable.Update(msg)
-		m.commitsTable = updatedTable.(commitstable.Model)
-		return m, cmd
+		updatedCommits, cmd1 := m.commitsTable.Update(msg)
+		updatedJira, cmd2 := m.jiraTable.Update(msg)
+		updatedSlack, cmd3 := m.slackTable.Update(msg)
+		m.commitsTable = updatedCommits.(commitstable.Model)
+		m.jiraTable = updatedJira.(jiratable.Model)
+		m.slackTable = updatedSlack.(slacktable.Model)
+		return m, tea.Batch(cmd1, cmd2, cmd3)
 	}
 }
 
 func (m Model) View() string {
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
-
-	welcomeMessage := "Project Void"
-	welcome := styles.WelcomeStyle.Width(contentWidth).Render(welcomeMessage)
-
-	quitMessage := "Q or Esc to quit"
-	quit := styles.QuitStyle.Width(contentWidth).Render(quitMessage)
 
 	var content string
 
@@ -116,15 +129,19 @@ func (m Model) View() string {
 		if m.loadError != "" {
 			errorInfo := fmt.Sprintf("Error loading commits: %s", m.loadError)
 			errorRendered := styles.NeutralStyle.Width(contentWidth).Render(errorInfo)
-			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + errorRendered
+			content = header + "\n" + dateInfoRendered + "\n\n" + errorRendered
 		} else if !m.loaded {
 			loadingInfo := "Loading commits..."
 			loadingRendered := styles.NeutralStyle.Width(contentWidth).Render(loadingInfo)
-			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + loadingRendered
+			content = header + "\n" + dateInfoRendered + "\n\n" + loadingRendered
 		} else {
 			tableView := m.commitsTable.View()
+			jiraView := m.jiraTable.View()
+			slackView := m.slackTable.View()
 			tableViewCentered := styles.NeutralStyle.Width(contentWidth).Render(tableView)
-			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered
+			jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
+			slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
+			content = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 		}
 	} else {
 		generalHeader := "Statistics Dashboard"
@@ -136,7 +153,7 @@ func (m Model) View() string {
 		otherStatsInfo := "Other statistics will be displayed here..."
 		otherStatsRendered := styles.NeutralStyle.Width(contentWidth).Render(otherStatsInfo)
 
-		content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + otherStatsRendered
+		content = header + "\n" + dateInfoRendered + "\n\n" + otherStatsRendered
 	}
 
 	return styles.DocStyle.Width(m.width).Render(content)

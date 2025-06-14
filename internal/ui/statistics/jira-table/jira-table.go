@@ -1,11 +1,6 @@
-package commitstable
+package jiratable
 
 import (
-	"fmt"
-	"project-void/internal/git"
-	"strings"
-	"time"
-
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,15 +19,20 @@ type Model struct {
 
 func InitialModel() Model {
 	columns := []table.Column{
-		{Title: "Branch", Width: 12},
-		{Title: "Author", Width: 20},
-		{Title: "Date", Width: 12},
-		{Title: "Message", Width: 50},
+		{Title: "Issue", Width: 8},
+		{Title: "Status", Width: 8},
+		{Title: "Assignee", Width: 10},
+	}
+
+	rows := []table.Row{
+		{"PV-101", "In Progress", "Alice"},
+		{"PV-102", "Done", "Bob"},
+		{"PV-103", "To Do", "Charlie"},
 	}
 
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithRows([]table.Row{}),
+		table.WithRows(rows),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
@@ -72,78 +72,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-			branchWidth := 12
-			authorWidth := 20
-			dateWidth := 12
-			messageWidth := m.width - branchWidth - authorWidth - dateWidth - 10
-			if messageWidth < 20 {
-				messageWidth = 20
+			issueWidth := 8
+			statusWidth := 8
+			assigneeWidth := m.width - issueWidth - statusWidth - 10
+			if assigneeWidth < 10 {
+				assigneeWidth = 10
 			}
-
 			columns := []table.Column{
-				{Title: "Branch", Width: branchWidth},
-				{Title: "Author", Width: authorWidth},
-				{Title: "Date", Width: dateWidth},
-				{Title: "Message", Width: messageWidth},
+				{Title: "Issue", Width: issueWidth},
+				{Title: "Status", Width: statusWidth},
+				{Title: "Assignee", Width: assigneeWidth},
 			}
 			m.table.SetColumns(columns)
 		}
 	}
-
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
 }
 
 func (m Model) View() string {
 	tableView := baseStyle.Render(m.table.View())
-
 	if m.width > 0 {
 		return lipgloss.NewStyle().Width(m.width).Render(tableView)
 	}
-
 	return tableView
-}
-
-func (m *Model) LoadCommits(repoPath string, since time.Time) error {
-	commits, err := git.GetCommitsSince(repoPath, since)
-	if err != nil {
-		return fmt.Errorf("failed to load commits: %w", err)
-	}
-
-	rows := make([]table.Row, len(commits))
-	for i, commit := range commits {
-
-		shortBranch := commit.Branch
-		if len(shortBranch) > 10 {
-			shortBranch = shortBranch[:10]
-		}
-
-		dateStr := commit.Timestamp.Format("2006-01-02")
-
-		message := strings.ReplaceAll(commit.Message, "\n", " ")
-		message = strings.TrimSpace(message)
-		if len(message) > 80 {
-			message = message[:77] + "..."
-		}
-
-		rows[i] = table.Row{
-			shortBranch,
-			commit.Author,
-			dateStr,
-			message,
-		}
-	}
-
-	m.table.SetRows(rows)
-	return nil
-}
-
-func (m Model) GetSelectedCommit() table.Row {
-	return m.table.SelectedRow()
-}
-
-func (m Model) TotalCommits() int {
-	return len(m.table.Rows())
 }
 
 func (m *Model) Focus() {
