@@ -8,6 +8,7 @@ import (
 	jiratable "project-void/internal/ui/statistics/jira-table"
 	slacktable "project-void/internal/ui/statistics/slack-table"
 	"project-void/internal/ui/styles"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -33,6 +34,7 @@ type Model struct {
 	showingCommand bool
 	command        string
 	submitted      bool
+	authorFilter   []string
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -88,6 +90,25 @@ func loadCommitsCmd(folder string, since time.Time) tea.Cmd {
 		var commitsTable commitstable.Model = commitstable.InitialModel()
 		commitsTable.StartLoading()
 		err := commitsTable.LoadCommits(folder, since)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
+func loadCommitsByAuthorsCmd(folder string, since time.Time, authorNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if folder == "" {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByAuthors(folder, since, authorNames)
 		if err != nil {
 			return LoadErrorMsg{Error: err.Error()}
 		}
@@ -297,10 +318,58 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if validatedCmd.Action == "start" || validatedCmd.Action == "reset" {
+					if m.isDev && m.selectedFolder != "" && len(m.authorFilter) > 0 {
+						m.authorFilter = nil
+						tickCmd := m.commitsTable.StartLoadingWithCmd()
+						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
+						m.commandError = ""
+						m.textInput.SetValue("")
+						m.showingCommand = false
+						return m, tea.Batch(tickCmd, loadCmd)
+					}
 					m.command = validatedCmd.Action
 					m.submitted = true
 					m.commandError = ""
 					return m, nil
+				}
+
+				if validatedCmd.Action == "filter_by_author" {
+					authorNames := commands.GetAuthorNamesFromCommand(validatedCmd.Name)
+					if len(authorNames) == 0 {
+						m.commandError = "Invalid author names in command"
+						m.textInput.SetValue("")
+						return m, nil
+					}
+
+					if m.isDev && m.selectedFolder != "" {
+						tickCmd := m.commitsTable.StartLoadingWithCmd()
+						m.authorFilter = authorNames
+						loadCmd := loadCommitsByAuthorsCmd(m.selectedFolder, m.selectedDate, authorNames)
+						m.commandError = ""
+						m.textInput.SetValue("")
+						m.showingCommand = false
+						return m, tea.Batch(tickCmd, loadCmd)
+					} else {
+						m.commandError = "Author filtering only available in development mode with a repository selected"
+						m.textInput.SetValue("")
+						return m, nil
+					}
+				}
+
+				if validatedCmd.Action == "clear_author_filter" {
+					if m.isDev && m.selectedFolder != "" {
+						m.authorFilter = nil
+						tickCmd := m.commitsTable.StartLoadingWithCmd()
+						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
+						m.commandError = ""
+						m.textInput.SetValue("")
+						m.showingCommand = false
+						return m, tea.Batch(tickCmd, loadCmd)
+					} else {
+						m.commandError = "Author filtering only available in development mode with a repository selected"
+						m.textInput.SetValue("")
+						return m, nil
+					}
 				}
 
 				m.commandError = fmt.Sprintf("Unknown command action: %s", validatedCmd.Action)
@@ -564,6 +633,12 @@ func (m Model) View() string {
 	var mainContent string
 	if m.isDev && m.selectedFolder != "" {
 		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedFolder)
+
+		if len(m.authorFilter) > 0 {
+			authorFilterText := strings.Join(m.authorFilter, ", ")
+			commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
+		}
+
 		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
 
 		totalCommits := m.commitsTable.TotalCommits()
