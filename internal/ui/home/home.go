@@ -54,15 +54,15 @@ func (m Model) View() string {
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
-	// Render welcome message
 	welcomeMessage := "Welcome to Project Void"
 	welcome := styles.WelcomeStyle.Width(contentWidth).Render(welcomeMessage)
 
-	// Get tabs view
+	quitMessage := "Q or Esc to quit"
+	quit := styles.QuitStyle.Width(contentWidth).Render(quitMessage)
+
 	tabsView := m.tabs.View()
 
-	// Combine welcome message with tabs
-	content := welcome + "\n\n" + tabsView
+	content := welcome + "\n" + quit + "\n\n" + tabsView
 
 	return styles.DocStyle.Width(m.width).Render(content)
 }
