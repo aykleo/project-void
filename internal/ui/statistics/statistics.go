@@ -22,6 +22,7 @@ type Model struct {
 	height         int
 	loaded         bool
 	loadError      string
+	focusedTable   int // 0: commits (dev) or jira (non-dev), 1: jira (dev) or slack (non-dev), 2: slack (dev)
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -32,6 +33,7 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
+		focusedTable:   0,
 	}
 }
 
@@ -87,6 +89,137 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.jiraTable = updatedJira.(jiratable.Model)
 		m.slackTable = updatedSlack.(slacktable.Model)
 
+		// Focus management: keep only the focused table focused and set border color
+		if m.isDev {
+			if m.focusedTable == 0 {
+				m.commitsTable.Focus()
+				m.commitsTable.SetFocusedStyle()
+				m.jiraTable.Blur()
+				m.jiraTable.SetBlurredStyle()
+				m.slackTable.Blur()
+				m.slackTable.SetBlurredStyle()
+			} else if m.focusedTable == 1 {
+				m.commitsTable.Blur()
+				m.commitsTable.SetBlurredStyle()
+				m.jiraTable.Focus()
+				m.jiraTable.SetFocusedStyle()
+				m.slackTable.Blur()
+				m.slackTable.SetBlurredStyle()
+			} else {
+				m.commitsTable.Blur()
+				m.commitsTable.SetBlurredStyle()
+				m.jiraTable.Blur()
+				m.jiraTable.SetBlurredStyle()
+				m.slackTable.Focus()
+				m.slackTable.SetFocusedStyle()
+			}
+		} else {
+			if m.focusedTable == 0 {
+				m.jiraTable.Focus()
+				m.jiraTable.SetFocusedStyle()
+				m.slackTable.Blur()
+				m.slackTable.SetBlurredStyle()
+			} else {
+				m.jiraTable.Blur()
+				m.jiraTable.SetBlurredStyle()
+				m.slackTable.Focus()
+				m.slackTable.SetFocusedStyle()
+			}
+		}
+		return m, tea.Batch(cmd1, cmd2, cmd3)
+
+	case tea.KeyMsg:
+		key := msg.String()
+		// Table focus switching
+		if key == "w" || key == "s" {
+			if m.isDev {
+				if key == "w" {
+					m.focusedTable = (m.focusedTable + 2) % 3 // up
+				} else {
+					m.focusedTable = (m.focusedTable + 1) % 3 // down
+				}
+			} else {
+				if key == "w" {
+					m.focusedTable = (m.focusedTable + 1) % 2 // up (2 tables)
+				} else {
+					m.focusedTable = (m.focusedTable + 1) % 2 // down (2 tables)
+				}
+			}
+			// Set focus/blur after switching
+			if m.isDev {
+				if m.focusedTable == 0 {
+					m.commitsTable.Focus()
+					m.commitsTable.SetFocusedStyle()
+					m.jiraTable.Blur()
+					m.jiraTable.SetBlurredStyle()
+					m.slackTable.Blur()
+					m.slackTable.SetBlurredStyle()
+				} else if m.focusedTable == 1 {
+					m.commitsTable.Blur()
+					m.commitsTable.SetBlurredStyle()
+					m.jiraTable.Focus()
+					m.jiraTable.SetFocusedStyle()
+					m.slackTable.Blur()
+					m.slackTable.SetBlurredStyle()
+				} else {
+					m.commitsTable.Blur()
+					m.commitsTable.SetBlurredStyle()
+					m.jiraTable.Blur()
+					m.jiraTable.SetBlurredStyle()
+					m.slackTable.Focus()
+					m.slackTable.SetFocusedStyle()
+				}
+			} else {
+				if m.focusedTable == 0 {
+					m.jiraTable.Focus()
+					m.jiraTable.SetFocusedStyle()
+					m.slackTable.Blur()
+					m.slackTable.SetBlurredStyle()
+				} else {
+					m.jiraTable.Blur()
+					m.jiraTable.SetBlurredStyle()
+					m.slackTable.Focus()
+					m.slackTable.SetFocusedStyle()
+				}
+			}
+			return m, nil
+		}
+		// Only send row navigation keys to the focused table
+		rowKeys := map[string]bool{"up": true, "down": true, "k": true, "j": true, "pgup": true, "pgdown": true, "home": true, "end": true}
+		if rowKeys[key] {
+			if m.isDev {
+				if m.focusedTable == 0 {
+					updated, cmd := m.commitsTable.Update(msg)
+					m.commitsTable = updated.(commitstable.Model)
+					return m, cmd
+				} else if m.focusedTable == 1 {
+					updated, cmd := m.jiraTable.Update(msg)
+					m.jiraTable = updated.(jiratable.Model)
+					return m, cmd
+				} else {
+					updated, cmd := m.slackTable.Update(msg)
+					m.slackTable = updated.(slacktable.Model)
+					return m, cmd
+				}
+			} else {
+				if m.focusedTable == 0 {
+					updated, cmd := m.jiraTable.Update(msg)
+					m.jiraTable = updated.(jiratable.Model)
+					return m, cmd
+				} else {
+					updated, cmd := m.slackTable.Update(msg)
+					m.slackTable = updated.(slacktable.Model)
+					return m, cmd
+				}
+			}
+		}
+		// For other keys, update all tables as before
+		updatedCommits, cmd1 := m.commitsTable.Update(msg)
+		updatedJira, cmd2 := m.jiraTable.Update(msg)
+		updatedSlack, cmd3 := m.slackTable.Update(msg)
+		m.commitsTable = updatedCommits.(commitstable.Model)
+		m.jiraTable = updatedJira.(jiratable.Model)
+		m.slackTable = updatedSlack.(slacktable.Model)
 		return m, tea.Batch(cmd1, cmd2, cmd3)
 
 	case LoadedMsg:

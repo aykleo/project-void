@@ -1,20 +1,30 @@
 package slacktable
 
 import (
+	"project-void/internal/ui/styles"
+
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240")).
-	Align(lipgloss.Center)
+var (
+	baseStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Align(lipgloss.Center)
+	focusedStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(styles.HighlightColor). // blue
+			Align(lipgloss.Center)
+)
 
 type Model struct {
-	table  table.Model
-	width  int
-	height int
+	table         table.Model
+	styles        table.Styles
+	width         int
+	height        int
+	borderFocused bool
 }
 
 func InitialModel() Model {
@@ -50,7 +60,8 @@ func InitialModel() Model {
 	t.SetStyles(s)
 
 	return Model{
-		table: t,
+		table:  t,
+		styles: s,
 	}
 }
 
@@ -92,9 +103,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	tableView := baseStyle.Render(m.table.View())
+
+	if m.borderFocused {
+		tableView = focusedStyle.Render(m.table.View())
+	}
+
 	if m.width > 0 {
 		return lipgloss.NewStyle().Width(m.width).Render(tableView)
 	}
+
 	return tableView
 }
 
@@ -104,4 +121,24 @@ func (m *Model) Focus() {
 
 func (m *Model) Blur() {
 	m.table.Blur()
+}
+
+func (m *Model) SetFocusedStyle() {
+	m.styles.Header = m.styles.Header.BorderForeground(styles.HighlightColor)
+	m.styles.Selected = m.styles.Selected.
+		BorderForeground(styles.HighlightColor).
+		Foreground(lipgloss.Color("15")).
+		Background(styles.HighlightColor)
+	m.table.SetStyles(m.styles)
+	m.borderFocused = true
+}
+
+func (m *Model) SetBlurredStyle() {
+	m.styles.Header = m.styles.Header.BorderForeground(lipgloss.Color("240"))
+	m.styles.Selected = m.styles.Selected.
+		BorderForeground(lipgloss.Color("57")).
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.NoColor{})
+	m.table.SetStyles(m.styles)
+	m.borderFocused = false
 }
