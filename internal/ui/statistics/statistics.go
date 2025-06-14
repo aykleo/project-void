@@ -150,10 +150,12 @@ func (m Model) View() string {
 		dateInfo := fmt.Sprintf("Date: %s", m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
-		otherStatsInfo := "Other statistics will be displayed here..."
-		otherStatsRendered := styles.NeutralStyle.Width(contentWidth).Render(otherStatsInfo)
+		jiraView := m.jiraTable.View()
+		slackView := m.slackTable.View()
+		jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
+		slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
 
-		content = header + "\n" + dateInfoRendered + "\n\n" + otherStatsRendered
+		content = header + "\n" + dateInfoRendered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 	}
 
 	return styles.DocStyle.Width(m.width).Render(content)
