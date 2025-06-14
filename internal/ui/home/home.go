@@ -42,6 +42,12 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(m.datePicker.Init(), m.folderPicker.Init())
 }
 
+func (m Model) UpdateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+	return m, nil
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -70,21 +76,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key == "y" || key == "yes" {
 				m.isDev = true
 				m.devModeSelected = true
-				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
-				tabContent := []string{
-					"This is the content of the Git commits tab",
-					"This is the content of the Jira cards tab",
-					"This is the content of the Slack messages tab",
-				}
-				m.tabs = tabs.InitialModel(tabNames, tabContent)
-
-				if m.width > 0 {
-					horizontalPadding := 4
-					contentWidth := m.width - (horizontalPadding * 2)
-					contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: m.height}
-					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
-					m.tabs = updatedTabs.(tabs.Model)
-				}
 				return m, nil
 			} else if key == "n" || key == "no" {
 				m.isDev = false
@@ -97,9 +88,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tabs = tabs.InitialModel(tabNames, tabContent)
 
 				if m.width > 0 {
-					horizontalPadding := 4
-					contentWidth := m.width - (horizontalPadding * 2)
-					contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: m.height}
+					contentSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
 					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
 					m.tabs = updatedTabs.(tabs.Model)
 				}
@@ -129,6 +118,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.folderPicker.GetSelectedFolder() != "" {
 				m.selectedFolder = m.folderPicker.GetSelectedFolder()
+
+				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
+				tabContent := []string{
+					fmt.Sprintf("Git commits for %s", m.selectedFolder),
+					"This is the content of the Jira cards tab",
+					"This is the content of the Slack messages tab",
+				}
+				m.tabs = tabs.InitialModel(tabNames, tabContent)
+
+				if m.width > 0 {
+					contentSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+					m.tabs = updatedTabs.(tabs.Model)
+				}
 			}
 
 			return m, cmd
@@ -171,6 +174,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if m.folderPicker.GetSelectedFolder() != "" {
 				m.selectedFolder = m.folderPicker.GetSelectedFolder()
+
+				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
+				tabContent := []string{
+					fmt.Sprintf("Repo: %s", m.selectedFolder),
+					"This is the content of the Jira cards tab",
+					"This is the content of the Slack messages tab",
+				}
+				m.tabs = tabs.InitialModel(tabNames, tabContent)
+
+				if m.width > 0 {
+					contentSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+					m.tabs = updatedTabs.(tabs.Model)
+				}
 			}
 
 			return m, cmd
@@ -259,9 +276,9 @@ func (m Model) View() string {
 
 	if m.isDev {
 		if m.needsConfirmation {
-			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
 		} else {
-			content = welcome + "\n" + quit + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
+			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
 		}
 	} else {
 		if m.needsConfirmation {
