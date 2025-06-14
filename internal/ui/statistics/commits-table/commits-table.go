@@ -44,7 +44,7 @@ func InitialModel() Model {
 		table.WithColumns(columns),
 		table.WithRows([]table.Row{}),
 		table.WithFocused(true),
-		table.WithHeight(10),
+		table.WithHeight(8),
 	)
 
 	s := table.DefaultStyles()
@@ -78,8 +78,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 		tableHeight := m.height - 4
-		if tableHeight < 5 {
-			tableHeight = 5
+		if tableHeight < 8 {
+			tableHeight = 8
 		}
 		m.table.SetHeight(tableHeight)
 

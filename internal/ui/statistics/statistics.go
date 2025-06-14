@@ -91,6 +91,11 @@ func (m Model) Init() tea.Cmd {
 			}
 			return JiraLoadedMsg{JiraTable: jiraTable}
 		},
+		func() tea.Msg {
+			var slackTable slacktable.Model = m.slackTable
+			slackTable.SetPlaceholder()
+			return SlackLoadedMsg{SlackTable: slackTable}
+		},
 	)
 }
 
@@ -110,6 +115,14 @@ type JiraLoadErrorMsg struct {
 	Error string
 }
 
+type SlackLoadedMsg struct {
+	SlackTable slacktable.Model
+}
+
+type SlackLoadErrorMsg struct {
+	Error string
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -123,8 +136,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.isDev {
 			tableHeight := availableHeight / 3
-			if tableHeight < 5 {
-				tableHeight = 5
+			if tableHeight < 3 {
+				tableHeight = 3
 			}
 
 			commitsMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
@@ -139,8 +152,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.slackTable = updatedSlack.(slacktable.Model)
 		} else {
 			tableHeight := availableHeight / 2
-			if tableHeight < 5 {
-				tableHeight = 5
+			if tableHeight < 3 {
+				tableHeight = 3
 			}
 
 			jiraMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
@@ -300,6 +313,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case JiraLoadErrorMsg:
 		return m, nil
 
+	case SlackLoadedMsg:
+		m.slackTable = msg.SlackTable
+		return m, nil
+
+	case SlackLoadErrorMsg:
+		return m, nil
+
 	default:
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
@@ -324,7 +344,7 @@ func (m Model) View() string {
 		totalCommits := m.commitsTable.TotalCommits()
 		totalIssues := m.jiraTable.TotalIssues()
 
-		dateInfo := fmt.Sprintf("%d commits, %d JIRA issues since %s", totalCommits, totalIssues, m.selectedDate.Format("January 2, 2006"))
+		dateInfo := fmt.Sprintf("%d commits, %d JIRA issues, %d Slack messages (coming soon) since %s", totalCommits, totalIssues, 0, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		if m.loadError != "" {
@@ -351,7 +371,7 @@ func (m Model) View() string {
 		header := styles.WelcomeStyle.Width(contentWidth).Render(generalHeader)
 
 		totalIssues := m.jiraTable.TotalIssues()
-		dateInfo := fmt.Sprintf("%d JIRA issues since %s", totalIssues, m.selectedDate.Format("January 2, 2006"))
+		dateInfo := fmt.Sprintf("%d JIRA issues, %d Slack messages (coming soon) since %s", totalIssues, 0, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		jiraView := m.jiraTable.View()
