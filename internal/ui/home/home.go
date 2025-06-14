@@ -1,16 +1,21 @@
 package home
 
 import (
+	"fmt"
+	datepicker "project-void/internal/ui/home/date-picker"
 	"project-void/internal/ui/home/tabs"
 	"project-void/internal/ui/styles"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Model struct {
-	tabs   tabs.Model
-	width  int
-	height int
+	datePicker   datepicker.Model
+	tabs         tabs.Model
+	selectedDate *time.Time
+	width        int
+	height       int
 }
 
 func InitialModel() Model {
@@ -21,12 +26,13 @@ func InitialModel() Model {
 		"This is the content of the Slack messages tab",
 	}
 	return Model{
-		tabs: tabs.InitialModel(tabNames, tabContent),
+		datePicker: datepicker.InitialModel(),
+		tabs:       tabs.InitialModel(tabNames, tabContent),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.tabs.Init()
+	return m.datePicker.Init()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -39,14 +45,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentWidth := msg.Width - (horizontalPadding * 2)
 
 		contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: msg.Height}
-		updatedTabs, cmd := m.tabs.Update(contentSizeMsg)
+
+		updatedTabs, tabCmd := m.tabs.Update(contentSizeMsg)
 		m.tabs = updatedTabs.(tabs.Model)
-		return m, cmd
+
+		if m.selectedDate != nil {
+			return m, tabCmd
+		}
+		return m, nil
 	default:
 
-		updatedTabs, cmd := m.tabs.Update(msg)
-		m.tabs = updatedTabs.(tabs.Model)
-		return m, cmd
+		if m.selectedDate == nil {
+			updatedDatePicker, cmd := m.datePicker.Update(msg)
+			m.datePicker = updatedDatePicker.(datepicker.Model)
+
+			if m.datePicker.IsDateSelected() {
+				selectedDate := m.datePicker.GetSelectedDate()
+				m.selectedDate = &selectedDate
+			}
+
+			return m, cmd
+		} else {
+			updatedTabs, cmd := m.tabs.Update(msg)
+			m.tabs = updatedTabs.(tabs.Model)
+			return m, cmd
+		}
 	}
 }
 
@@ -60,9 +83,25 @@ func (m Model) View() string {
 	quitMessage := "Q or Esc to quit"
 	quit := styles.QuitStyle.Width(contentWidth).Render(quitMessage)
 
-	tabsView := m.tabs.View()
+	var content string
 
-	content := welcome + "\n" + quit + "\n\n" + tabsView
+	if m.selectedDate == nil {
+		datePickerPrompt := "Please select a date to continue: ← → for days, ↑ ↓ for months, Enter/Space to select"
+		prompt := styles.NeutralStyle.Width(contentWidth).Render(datePickerPrompt)
+
+		currentDate := m.datePicker.GetSelectedDate()
+		initialDateMessage := fmt.Sprint(currentDate.Format("January 2, 2006"))
+		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(initialDateMessage)
+
+		content = welcome + "\n" + quit + "\n\n" + prompt + "\n" + dateInfo
+	} else {
+		selectedDateMessage := fmt.Sprint(m.selectedDate.Format("January 2, 2006"))
+		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(selectedDateMessage)
+
+		tabsView := m.tabs.View()
+
+		content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
+	}
 
 	return styles.DocStyle.Width(m.width).Render(content)
 }
