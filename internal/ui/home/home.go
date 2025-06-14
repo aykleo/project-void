@@ -3,36 +3,39 @@ package home
 import (
 	"fmt"
 	datepicker "project-void/internal/ui/home/date-picker"
+	folderpicker "project-void/internal/ui/home/folder-picker"
 	"project-void/internal/ui/home/tabs"
 	"project-void/internal/ui/styles"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Model struct {
-	datePicker   datepicker.Model
-	tabs         tabs.Model
-	selectedDate *time.Time
-	width        int
-	height       int
+	datePicker      datepicker.Model
+	folderPicker    folderpicker.Model
+	tabs            tabs.Model
+	selectedDate    *time.Time
+	selectedFolder  string
+	width           int
+	height          int
+	devModeSelected bool
+	isDev           bool
 }
 
 func InitialModel() Model {
-	tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
-	tabContent := []string{
-		"This is the content of the Git commits tab",
-		"This is the content of the Jira cards tab",
-		"This is the content of the Slack messages tab",
-	}
+	tabNames := []string{}
+	tabContent := []string{}
 	return Model{
-		datePicker: datepicker.InitialModel(),
-		tabs:       tabs.InitialModel(tabNames, tabContent),
+		datePicker:   datepicker.InitialModel(),
+		folderPicker: folderpicker.InitialModel(),
+		tabs:         tabs.InitialModel(tabNames, tabContent),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.datePicker.Init()
+	return tea.Batch(m.datePicker.Init(), m.folderPicker.Init())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -49,11 +52,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updatedTabs, tabCmd := m.tabs.Update(contentSizeMsg)
 		m.tabs = updatedTabs.(tabs.Model)
 
-		if m.selectedDate != nil {
-			return m, tabCmd
+		updatedFP, fpCmd := m.folderPicker.Update(contentSizeMsg)
+		m.folderPicker = updatedFP.(folderpicker.Model)
+
+		updatedDP, dpCmd := m.datePicker.Update(contentSizeMsg)
+		m.datePicker = updatedDP.(datepicker.Model)
+
+		return m, tea.Batch(tabCmd, fpCmd, dpCmd)
+	case tea.KeyMsg:
+
+		if !m.devModeSelected {
+			key := strings.ToLower(msg.String())
+			if key == "y" || key == "yes" {
+				m.isDev = true
+				m.devModeSelected = true
+				tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
+				tabContent := []string{
+					"This is the content of the Git commits tab",
+					"This is the content of the Jira cards tab",
+					"This is the content of the Slack messages tab",
+				}
+				m.tabs = tabs.InitialModel(tabNames, tabContent)
+
+				if m.width > 0 {
+					horizontalPadding := 4
+					contentWidth := m.width - (horizontalPadding * 2)
+					contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: m.height}
+					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+					m.tabs = updatedTabs.(tabs.Model)
+				}
+				return m, nil
+			} else if key == "n" || key == "no" {
+				m.isDev = false
+				m.devModeSelected = true
+				tabNames := []string{"Jira cards", "Slack messages"}
+				tabContent := []string{
+					"This is the content of the Jira cards tab",
+					"This is the content of the Slack messages tab",
+				}
+				m.tabs = tabs.InitialModel(tabNames, tabContent)
+
+				if m.width > 0 {
+					horizontalPadding := 4
+					contentWidth := m.width - (horizontalPadding * 2)
+					contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: m.height}
+					updatedTabs, _ := m.tabs.Update(contentSizeMsg)
+					m.tabs = updatedTabs.(tabs.Model)
+				}
+				return m, nil
+			}
+			return m, nil
 		}
-		return m, nil
-	default:
+
+		if m.isDev && m.selectedFolder == "" {
+			updatedFolderPicker, cmd := m.folderPicker.Update(msg)
+			m.folderPicker = updatedFolderPicker.(folderpicker.Model)
+
+			if m.folderPicker.GetSelectedFolder() != "" {
+				m.selectedFolder = m.folderPicker.GetSelectedFolder()
+			}
+
+			return m, cmd
+		}
 
 		if m.selectedDate == nil {
 			updatedDatePicker, cmd := m.datePicker.Update(msg)
@@ -66,6 +126,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, cmd
 		} else {
+
+			updatedTabs, cmd := m.tabs.Update(msg)
+			m.tabs = updatedTabs.(tabs.Model)
+			return m, cmd
+		}
+	default:
+
+		if !m.devModeSelected {
+			return m, nil
+		}
+
+		if m.isDev && m.selectedFolder == "" {
+			updatedFolderPicker, cmd := m.folderPicker.Update(msg)
+			m.folderPicker = updatedFolderPicker.(folderpicker.Model)
+
+			if m.folderPicker.GetSelectedFolder() != "" {
+				m.selectedFolder = m.folderPicker.GetSelectedFolder()
+			}
+
+			return m, cmd
+		}
+
+		if m.selectedDate == nil {
+			updatedDatePicker, cmd := m.datePicker.Update(msg)
+			m.datePicker = updatedDatePicker.(datepicker.Model)
+
+			if m.datePicker.IsDateSelected() {
+				selectedDate := m.datePicker.GetSelectedDate()
+				m.selectedDate = &selectedDate
+			}
+
+			return m, cmd
+		} else {
+
 			updatedTabs, cmd := m.tabs.Update(msg)
 			m.tabs = updatedTabs.(tabs.Model)
 			return m, cmd
@@ -85,6 +179,31 @@ func (m Model) View() string {
 
 	var content string
 
+	if !m.devModeSelected {
+		devPrompt := "Activate dev mode? (y/n)"
+		devPrompt = styles.NeutralStyle.Width(contentWidth).Render(devPrompt)
+		content = welcome + "\n" + quit + "\n\n" + devPrompt
+		return styles.DocStyle.Width(m.width).Render(content)
+	}
+
+	var devStatusRendered string
+	if m.isDev {
+		devStatus := fmt.Sprintln("Dev mode")
+		devStatusRendered = styles.WelcomeStyle.Width(contentWidth).Render(devStatus)
+	}
+
+	if m.isDev && m.selectedFolder == "" {
+		folderPicker := styles.FolderPickerStyle.Width(contentWidth).Render(m.folderPicker.View())
+		content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderPicker
+		return styles.DocStyle.Width(m.width).Render(content)
+	}
+
+	var folderInfo string
+	if m.isDev && m.selectedFolder != "" {
+		folderMessage := fmt.Sprintf("Selected folder: %s", m.selectedFolder)
+		folderInfo = styles.WelcomeStyle.Width(contentWidth).Render(folderMessage)
+	}
+
 	if m.selectedDate == nil {
 		datePickerPrompt := "Please select a date to continue: ← → for days, ↑ ↓ for months, Enter/Space to select"
 		prompt := styles.NeutralStyle.Width(contentWidth).Render(datePickerPrompt)
@@ -93,13 +212,22 @@ func (m Model) View() string {
 		initialDateMessage := fmt.Sprint(currentDate.Format("January 2, 2006"))
 		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(initialDateMessage)
 
-		content = welcome + "\n" + quit + "\n\n" + prompt + "\n" + dateInfo
+		if m.isDev {
+			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + prompt + "\n" + dateInfo
+		} else {
+			content = welcome + "\n" + quit + "\n\n" + prompt + "\n" + dateInfo
+		}
+		return styles.DocStyle.Width(m.width).Render(content)
+	}
+
+	selectedDateMessage := fmt.Sprint(m.selectedDate.Format("January 2, 2006"))
+	dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(selectedDateMessage)
+
+	tabsView := m.tabs.View()
+
+	if m.isDev {
+		content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
 	} else {
-		selectedDateMessage := fmt.Sprint(m.selectedDate.Format("January 2, 2006"))
-		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(selectedDateMessage)
-
-		tabsView := m.tabs.View()
-
 		content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
 	}
 
