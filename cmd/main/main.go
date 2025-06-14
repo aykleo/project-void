@@ -8,19 +8,13 @@ import (
 
 	// git "project-void/internal/git"
 	// hello_world "project-void/internal/ui/hello-world"
-	home "project-void/internal/ui/home"
+	"project-void/internal/ui/home"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	tabs := []string{"Git commits", "Jira cards", "Slack messages"}
-	tabContent := []string{
-		"This is the content of the Git commits tab",
-		"This is the content of the Jira cards tab",
-		"This is the content of the Slack messages tab",
-	}
-	m := home.InitialModel(tabs, tabContent)
+	m := home.InitialModel()
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)

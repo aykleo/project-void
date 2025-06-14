@@ -1,126 +1,68 @@
 package home
 
 import (
-	"strings"
+	"project-void/internal/ui/home/tabs"
+	"project-void/internal/ui/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 )
 
-type model struct {
-	Tabs       []string
-	TabContent []string
-	ActiveTab  int
-	Width      int
+type Model struct {
+	tabs   tabs.Model
+	width  int
+	height int
 }
 
-func InitialModel(tabs []string, tabContent []string) model {
-	return model{
-		Tabs:       tabs,
-		TabContent: tabContent,
-		ActiveTab:  0,
+func InitialModel() Model {
+	tabNames := []string{"Git commits", "Jira cards", "Slack messages"}
+	tabContent := []string{
+		"This is the content of the Git commits tab",
+		"This is the content of the Jira cards tab",
+		"This is the content of the Slack messages tab",
+	}
+	return Model{
+		tabs: tabs.InitialModel(tabNames, tabContent),
 	}
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
+func (m Model) Init() tea.Cmd {
+	return m.tabs.Init()
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		case "right", "l", "n", "tab":
-			m.ActiveTab = min(m.ActiveTab+1, len(m.Tabs)-1)
-			return m, nil
-		case "left", "h", "p", "shift+tab":
-			m.ActiveTab = max(m.ActiveTab-1, 0)
-			return m, nil
-		}
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		return m, nil
+		m.width = msg.Width
+		m.height = msg.Height
+
+		horizontalPadding := 4
+		contentWidth := msg.Width - (horizontalPadding * 2)
+
+		contentSizeMsg := tea.WindowSizeMsg{Width: contentWidth, Height: msg.Height}
+		updatedTabs, cmd := m.tabs.Update(contentSizeMsg)
+		m.tabs = updatedTabs.(tabs.Model)
+		return m, cmd
+	default:
+
+		updatedTabs, cmd := m.tabs.Update(msg)
+		m.tabs = updatedTabs.(tabs.Model)
+		return m, cmd
 	}
-	return m, nil
 }
 
-func tabBorderWithBottom(left, middle, right string) lipgloss.Border {
-	border := lipgloss.RoundedBorder()
-	border.BottomLeft = left
-	border.Bottom = middle
-	border.BottomRight = right
-	return border
-}
-
-var (
-	inactiveTabBorder = tabBorderWithBottom("┴", "─", "┴")
-	activeTabBorder   = tabBorderWithBottom("┘", " ", "└")
-	docStyle          = lipgloss.NewStyle().Padding(1, 4, 1, 4)
-	highlightColor    = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	inactiveTabStyle  = lipgloss.NewStyle().Border(inactiveTabBorder, true).BorderForeground(highlightColor).Padding(0, 1)
-	activeTabStyle    = inactiveTabStyle.Border(activeTabBorder, true)
-	windowStyle       = lipgloss.NewStyle().BorderForeground(highlightColor).Padding(2, 0).Align(lipgloss.Center).Border(lipgloss.NormalBorder()).UnsetBorderTop()
-	welcomeStyle      = lipgloss.NewStyle().Foreground(highlightColor).Bold(true).Align(lipgloss.Center).MarginBottom(2)
-)
-
-func (m model) View() string {
-	doc := strings.Builder{}
-
+func (m Model) View() string {
 	horizontalPadding := 4
-	contentWidth := m.Width - (horizontalPadding * 2)
+	contentWidth := m.width - (horizontalPadding * 2)
 
+	// Render welcome message
 	welcomeMessage := "Welcome to Project Void"
-	doc.WriteString(welcomeStyle.Width(contentWidth).Render(welcomeMessage))
-	doc.WriteString("\n\n")
+	welcome := styles.WelcomeStyle.Width(contentWidth).Render(welcomeMessage)
 
-	var renderedTabs []string
+	// Get tabs view
+	tabsView := m.tabs.View()
 
-	for i, t := range m.Tabs {
-		var style lipgloss.Style
-		isFirst, isLast, isActive := i == 0, i == len(m.Tabs)-1, i == m.ActiveTab
-		if isActive {
-			style = activeTabStyle
-		} else {
-			style = inactiveTabStyle
-		}
-		border, _, _, _, _ := style.GetBorder()
-		if isFirst && isActive {
-			border.BottomLeft = "│"
-		} else if isFirst && !isActive {
-			border.BottomLeft = "├"
-		} else if isLast && isActive {
-			border.BottomRight = "│"
-		} else if isLast && !isActive {
-			border.BottomRight = "┤"
-		}
-		style = style.Border(border)
-		renderedTabs = append(renderedTabs, style.Render(t))
-	}
+	// Combine welcome message with tabs
+	content := welcome + "\n\n" + tabsView
 
-	row := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
-	tabsWidth := lipgloss.Width(row)
-
-	doc.WriteString(lipgloss.NewStyle().Width(contentWidth).Align(lipgloss.Center).Render(row))
-	doc.WriteString("\n")
-
-	doc.WriteString(lipgloss.NewStyle().Width(contentWidth).Align(lipgloss.Center).Render(
-		windowStyle.Width(tabsWidth - windowStyle.GetHorizontalFrameSize()).Render(m.TabContent[m.ActiveTab])))
-
-	return docStyle.Width(m.Width).Render(doc.String())
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	return styles.DocStyle.Width(m.width).Render(content)
 }
