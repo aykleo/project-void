@@ -24,7 +24,7 @@ type Model struct {
 
 func InitialModel() Model {
 	columns := []table.Column{
-		{Title: "Hash", Width: 12},
+		{Title: "Branch", Width: 12},
 		{Title: "Author", Width: 20},
 		{Title: "Date", Width: 12},
 		{Title: "Message", Width: 50},
@@ -72,16 +72,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-			hashWidth := 12
+			branchWidth := 12
 			authorWidth := 20
 			dateWidth := 12
-			messageWidth := m.width - hashWidth - authorWidth - dateWidth - 10
+			messageWidth := m.width - branchWidth - authorWidth - dateWidth - 10
 			if messageWidth < 20 {
 				messageWidth = 20
 			}
 
 			columns := []table.Column{
-				{Title: "Hash", Width: hashWidth},
+				{Title: "Branch", Width: branchWidth},
 				{Title: "Author", Width: authorWidth},
 				{Title: "Date", Width: dateWidth},
 				{Title: "Message", Width: messageWidth},
@@ -116,9 +116,9 @@ func (m *Model) LoadCommits(repoPath string, since time.Time) error {
 	rows := make([]table.Row, len(commits))
 	for i, commit := range commits {
 
-		shortHash := commit.Hash
-		if len(shortHash) > 8 {
-			shortHash = shortHash[:8]
+		shortBranch := commit.Branch
+		if len(shortBranch) > 10 {
+			shortBranch = shortBranch[:10]
 		}
 
 		dateStr := commit.Timestamp.Format("2006-01-02")
@@ -130,7 +130,7 @@ func (m *Model) LoadCommits(repoPath string, since time.Time) error {
 		}
 
 		rows[i] = table.Row{
-			shortHash,
+			shortBranch,
 			commit.Author,
 			dateStr,
 			message,

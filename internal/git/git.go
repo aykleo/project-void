@@ -11,6 +11,7 @@ import (
 
 type Commit struct {
 	Hash      string
+	Branch    string
 	Author    string
 	Message   string
 	Timestamp time.Time
@@ -46,6 +47,7 @@ func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
 				if _, exists := uniqueCommits[hash]; !exists {
 					uniqueCommits[hash] = Commit{
 						Hash:      hash,
+						Branch:    ref.Name().Short(),
 						Author:    c.Author.Name,
 						Message:   c.Message,
 						Timestamp: c.Author.When,
