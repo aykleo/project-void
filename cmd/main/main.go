@@ -21,6 +21,8 @@ type MainModel struct {
 	state      AppState
 	homeModel  home.Model
 	statsModel statistics.Model
+	width      int
+	height     int
 }
 
 func InitialMainModel() MainModel {
@@ -42,7 +44,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case home.ProceedMsg:
-
 		if m.homeModel.ShouldProceed() {
 			m.state = StatisticsState
 			selectedFolder := m.homeModel.GetSelectedFolder()
@@ -51,11 +52,23 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			if selectedDate != nil {
 				m.statsModel = statistics.InitialModel(selectedFolder, *selectedDate, isDev)
-				return m, m.statsModel.Init()
+				var cmds []tea.Cmd
+				cmds = append(cmds, m.statsModel.Init())
+				if m.width > 0 && m.height > 0 {
+					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
+					updatedStats, cmd := m.statsModel.Update(windowSizeMsg)
+					m.statsModel = updatedStats.(statistics.Model)
+					if cmd != nil {
+						cmds = append(cmds, cmd)
+					}
+				}
+				return m, tea.Batch(cmds...)
 			}
 		}
 		return m, nil
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 		switch m.state {
 		case HomeState:
 			updatedHome, cmd := m.homeModel.Update(msg)

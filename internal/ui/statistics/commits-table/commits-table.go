@@ -144,3 +144,7 @@ func (m *Model) LoadCommits(repoPath string, since time.Time) error {
 func (m Model) GetSelectedCommit() table.Row {
 	return m.table.SelectedRow()
 }
+
+func (m Model) TotalCommits() int {
+	return len(m.table.Rows())
+}

@@ -108,7 +108,9 @@ func (m Model) View() string {
 		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedFolder)
 		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
 
-		dateInfo := fmt.Sprintf("Since: %s", m.selectedDate.Format("January 2, 2006"))
+		totalCommits := m.commitsTable.TotalCommits()
+
+		dateInfo := fmt.Sprintf("%d commits since %s", totalCommits, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		if m.loadError != "" {
@@ -121,7 +123,8 @@ func (m Model) View() string {
 			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + loadingRendered
 		} else {
 			tableView := m.commitsTable.View()
-			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + tableView
+			tableViewCentered := styles.NeutralStyle.Width(contentWidth).Render(tableView)
+			content = welcome + "\n" + quit + "\n\n" + header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered
 		}
 	} else {
 		generalHeader := "Statistics Dashboard"
