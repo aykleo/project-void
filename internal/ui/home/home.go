@@ -12,16 +12,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type ProceedMsg struct{}
+
 type Model struct {
-	datePicker      datepicker.Model
-	folderPicker    folderpicker.Model
-	tabs            tabs.Model
-	selectedDate    *time.Time
-	selectedFolder  string
-	width           int
-	height          int
-	devModeSelected bool
-	isDev           bool
+	datePicker        datepicker.Model
+	folderPicker      folderpicker.Model
+	tabs              tabs.Model
+	selectedDate      *time.Time
+	selectedFolder    string
+	width             int
+	height            int
+	devModeSelected   bool
+	isDev             bool
+	needsConfirmation bool
+	shouldProceed     bool
 }
 
 func InitialModel() Model {
@@ -104,6 +108,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if m.needsConfirmation {
+			key := strings.ToLower(msg.String())
+			if key == "y" || key == "yes" {
+				m.shouldProceed = true
+				return m, tea.Batch(tea.Cmd(func() tea.Msg { return ProceedMsg{} }))
+			} else if key == "n" || key == "no" {
+
+				return InitialModel(), tea.Cmd(func() tea.Msg { return tea.WindowSizeMsg{Width: m.width, Height: m.height} })
+			}
+
+			updatedTabs, cmd := m.tabs.Update(msg)
+			m.tabs = updatedTabs.(tabs.Model)
+			return m, cmd
+		}
+
 		if m.isDev && m.selectedFolder == "" {
 			updatedFolderPicker, cmd := m.folderPicker.Update(msg)
 			m.folderPicker = updatedFolderPicker.(folderpicker.Model)
@@ -122,11 +141,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.datePicker.IsDateSelected() {
 				selectedDate := m.datePicker.GetSelectedDate()
 				m.selectedDate = &selectedDate
+
+				m.needsConfirmation = true
 			}
 
 			return m, cmd
-		} else {
+		} else if !m.needsConfirmation {
 
+			m.needsConfirmation = true
+			return m, nil
+		} else {
 			updatedTabs, cmd := m.tabs.Update(msg)
 			m.tabs = updatedTabs.(tabs.Model)
 			return m, cmd
@@ -134,6 +158,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 
 		if !m.devModeSelected {
+			return m, nil
+		}
+
+		if m.needsConfirmation {
 			return m, nil
 		}
 
@@ -155,11 +183,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.datePicker.IsDateSelected() {
 				selectedDate := m.datePicker.GetSelectedDate()
 				m.selectedDate = &selectedDate
+
+				m.needsConfirmation = true
 			}
 
 			return m, cmd
-		} else {
+		} else if !m.needsConfirmation {
 
+			m.needsConfirmation = true
+			return m, nil
+		} else {
 			updatedTabs, cmd := m.tabs.Update(msg)
 			m.tabs = updatedTabs.(tabs.Model)
 			return m, cmd
@@ -225,11 +258,40 @@ func (m Model) View() string {
 
 	tabsView := m.tabs.View()
 
+	var confirmationPrompt string
+	if m.needsConfirmation {
+		confirmationPrompt = styles.NeutralStyle.Width(contentWidth).Render("Proceed with these options? (y/n)")
+	}
+
 	if m.isDev {
-		content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
+		if m.needsConfirmation {
+			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+		} else {
+			content = welcome + "\n" + quit + "\n\n" + devStatusRendered + "\n\n" + folderInfo + "\n\n" + dateInfo + "\n\n" + tabsView
+		}
 	} else {
-		content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
+		if m.needsConfirmation {
+			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView + "\n\n" + confirmationPrompt
+		} else {
+			content = welcome + "\n" + quit + "\n\n" + dateInfo + "\n\n" + tabsView
+		}
 	}
 
 	return styles.DocStyle.Width(m.width).Render(content)
+}
+
+func (m Model) ShouldProceed() bool {
+	return m.shouldProceed
+}
+
+func (m Model) GetSelectedFolder() string {
+	return m.selectedFolder
+}
+
+func (m Model) GetSelectedDate() *time.Time {
+	return m.selectedDate
+}
+
+func (m Model) IsDevMode() bool {
+	return m.isDev
 }

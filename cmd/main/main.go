@@ -4,59 +4,99 @@ import (
 	"fmt"
 	"os"
 
-	// "time"
-
-	// git "project-void/internal/git"
-	// hello_world "project-void/internal/ui/hello-world"
 	"project-void/internal/ui/home"
+	"project-void/internal/ui/statistics"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type AppState int
+
+const (
+	HomeState AppState = iota
+	StatisticsState
+)
+
+type MainModel struct {
+	state      AppState
+	homeModel  home.Model
+	statsModel statistics.Model
+}
+
+func InitialMainModel() MainModel {
+	return MainModel{
+		state:     HomeState,
+		homeModel: home.InitialModel(),
+	}
+}
+
+func (m MainModel) Init() tea.Cmd {
+	return m.homeModel.Init()
+}
+
+func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "esc":
+			return m, tea.Quit
+		}
+	case home.ProceedMsg:
+
+		if m.homeModel.ShouldProceed() {
+			m.state = StatisticsState
+			selectedFolder := m.homeModel.GetSelectedFolder()
+			selectedDate := m.homeModel.GetSelectedDate()
+			isDev := m.homeModel.IsDevMode()
+
+			if selectedDate != nil {
+				m.statsModel = statistics.InitialModel(selectedFolder, *selectedDate, isDev)
+				return m, m.statsModel.Init()
+			}
+		}
+		return m, nil
+	case tea.WindowSizeMsg:
+		switch m.state {
+		case HomeState:
+			updatedHome, cmd := m.homeModel.Update(msg)
+			m.homeModel = updatedHome.(home.Model)
+			return m, cmd
+		case StatisticsState:
+			updatedStats, cmd := m.statsModel.Update(msg)
+			m.statsModel = updatedStats.(statistics.Model)
+			return m, cmd
+		}
+	}
+
+	switch m.state {
+	case HomeState:
+		updatedHome, cmd := m.homeModel.Update(msg)
+		m.homeModel = updatedHome.(home.Model)
+		return m, cmd
+	case StatisticsState:
+		updatedStats, cmd := m.statsModel.Update(msg)
+		m.statsModel = updatedStats.(statistics.Model)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m MainModel) View() string {
+	switch m.state {
+	case HomeState:
+		return m.homeModel.View()
+	case StatisticsState:
+		return m.statsModel.View()
+	}
+	return ""
+}
+
 func main() {
-	m := home.InitialModel()
+	m := InitialMainModel()
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v", err)
 		os.Exit(1)
 	}
 }
-
-// for {
-// 	if len(os.Args) < 2 {
-// 		fmt.Println("Usage: program <git-repo-path> <since-date>")
-// 		fmt.Println("Please enter a valid path:")
-// 		var path string
-// 		fmt.Scanln(&path)
-// 		os.Args = append(os.Args, path)
-// 		continue
-// 	}
-
-// 	repoPath := os.Args[1]
-// 	sinceDate, err := time.Parse("02/01/2006", os.Args[2])
-// 	if err != nil {
-// 		fmt.Printf("Error parsing date: %v\n", err)
-// 		fmt.Println("Please enter a valid date (dd/mm/yyyy format):")
-// 		var date string
-// 		fmt.Scanln(&date)
-// 		os.Args[2] = date
-// 		continue
-// 	}
-
-// 	commits, err := git.GetCommitsSince(repoPath, sinceDate)
-// 	if err != nil {
-// 		fmt.Printf("Error getting commits: %v\n", err)
-// 		fmt.Println("Please enter a valid git repository path:")
-// 		var path string
-// 		fmt.Scanln(&path)
-// 		os.Args[1] = path
-// 		continue
-// 	}
-
-// 	p := tea.NewProgram(hello_world.InitialModel(commits))
-// 	if _, err := p.Run(); err != nil {
-// 		fmt.Printf("Error: %v", err)
-// 		os.Exit(1)
-// 	}
-// 	break
-// }
