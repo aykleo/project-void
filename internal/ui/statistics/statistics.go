@@ -614,14 +614,14 @@ func (m Model) View() string {
 			commandHeader = fmt.Sprintf("%s\nCommand: %s\n%s",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
 				m.textInput.View(),
-				styles.QuitStyle.Render("Press ' to exit command mode, Esc to go back to start"))
+				styles.QuitStyle.Render("Press ' to exit command mode, esc to go back to start"))
 		} else {
 			commandHeader = fmt.Sprintf("Command: %s\n%s",
 				m.textInput.View(),
-				styles.QuitStyle.Render("Press ' to exit command mode, Esc to go back to start"))
+				styles.QuitStyle.Render("Press ' to exit command mode, esc to go back to start"))
 		}
 	} else {
-		navHelp := "Use w/s to navigate tables, c for commands, q/Esc to go back"
+		navHelp := "Use w/s to navigate tables, c for commands, esc to go back"
 		commandHeader = styles.QuitStyle.Render(navHelp)
 	}
 
