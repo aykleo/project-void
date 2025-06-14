@@ -2,11 +2,13 @@ package slacktable
 
 import (
 	"fmt"
+	"math/rand"
 	"project-void/internal/slack"
 	"project-void/internal/ui/styles"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,13 +25,33 @@ var (
 			Align(lipgloss.Center)
 )
 
+type LoadingState int
+
+const (
+	LoadingIdle LoadingState = iota
+	LoadingInProgress
+	LoadingComplete
+	LoadingError
+)
+
 type Model struct {
 	table         table.Model
 	styles        table.Styles
 	width         int
 	height        int
 	borderFocused bool
+	loadingState  LoadingState
+	progress      progress.Model
+	loadError     string
 }
+
+type LoadMessagesProgressMsg struct {
+	Percent float64
+}
+
+type tickMsg time.Time
+
+type LoadingCompleteMsg struct{}
 
 func InitialModel() Model {
 	columns := []table.Column{
@@ -60,13 +82,20 @@ func InitialModel() Model {
 		Bold(false)
 	t.SetStyles(s)
 
+	p := progress.New(progress.WithDefaultGradient())
+
 	return Model{
-		table:  t,
-		styles: s,
+		table:        t,
+		styles:       s,
+		loadingState: LoadingIdle,
+		progress:     p,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.loadingState == LoadingInProgress {
+		return tickCmd()
+	}
 	return nil
 }
 
@@ -76,6 +105,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		m.progress.Width = msg.Width - 20
+		if m.progress.Width > 80 {
+			m.progress.Width = 80
+		}
 
 		tableHeight := m.height - 4
 		if tableHeight < 1 {
@@ -99,12 +133,75 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.table.SetColumns(columns)
 		}
+
+	case LoadMessagesProgressMsg:
+		if m.loadingState == LoadingInProgress {
+			cmd = m.progress.SetPercent(msg.Percent)
+			return m, cmd
+		}
+
+	case tickMsg:
+		if m.loadingState == LoadingInProgress {
+			currentPercent := m.progress.Percent()
+
+			if currentPercent < 0.95 {
+				maxIncrement := 0.1 * (1.0 - currentPercent)
+				increment := rand.Float64() * maxIncrement
+
+				newPercent := currentPercent + increment
+				if newPercent > 0.95 {
+					newPercent = 0.95
+				}
+
+				return m, tea.Batch(tickCmd(), m.progress.SetPercent(newPercent))
+			}
+
+			return m, tickCmd()
+		}
+
+	case LoadingCompleteMsg:
+		if m.loadingState == LoadingInProgress {
+			m.loadingState = LoadingComplete
+			return m, m.progress.SetPercent(1.0)
+		}
+
+	case progress.FrameMsg:
+		if m.loadingState == LoadingInProgress || m.progress.Percent() < 1.0 {
+			progressModel, cmd := m.progress.Update(msg)
+			m.progress = progressModel.(progress.Model)
+			return m, cmd
+		}
 	}
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
 }
 
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Millisecond*200+time.Duration(rand.Intn(300))*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m Model) View() string {
+	if m.loadingState == LoadingInProgress {
+		loadingText := "Loading Slack messages..."
+		progressView := m.progress.View()
+
+		content := lipgloss.JoinVertical(lipgloss.Center,
+			loadingText,
+			progressView,
+		)
+
+		return content
+	}
+
+	if m.loadingState == LoadingError {
+		errorText := fmt.Sprintf("Error loading Slack messages: %s", m.loadError)
+		content := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText)
+
+		return content
+	}
+
 	tableView := baseStyle.Render(m.table.View())
 
 	if m.borderFocused {
@@ -147,11 +244,18 @@ func (m *Model) SetBlurredStyle() {
 }
 
 func (m *Model) LoadMessages(slackClient *slack.SlackClient, since time.Time, config *slack.Config) error {
+	m.loadingState = LoadingInProgress
+	m.progress.SetPercent(0.0)
+
+	m.progress.SetPercent(0.3)
 	messages, err := slackClient.GetMessagesSince(since, config)
 	if err != nil {
+		m.loadingState = LoadingError
+		m.loadError = err.Error()
 		return fmt.Errorf("failed to load messages: %w", err)
 	}
 
+	m.progress.SetPercent(0.6)
 	var userMessages []slack.Message
 	for _, message := range messages {
 		if config.FilterByUser && config.UserID != "" {
@@ -165,6 +269,11 @@ func (m *Model) LoadMessages(slackClient *slack.SlackClient, since time.Time, co
 
 	rows := make([]table.Row, len(userMessages))
 	for i, message := range userMessages {
+		if len(userMessages) > 0 {
+			progress := 0.6 + (0.3 * float64(i) / float64(len(userMessages)))
+			m.progress.SetPercent(progress)
+		}
+
 		fromName := message.User
 		if len(fromName) > 11 {
 			fromName = fromName[:8] + "..."
@@ -197,7 +306,10 @@ func (m *Model) LoadMessages(slackClient *slack.SlackClient, since time.Time, co
 		}
 	}
 
+	m.progress.SetPercent(0.9)
 	m.table.SetRows(rows)
+	m.progress.SetPercent(1.0)
+	m.loadingState = LoadingComplete
 	return nil
 }
 
@@ -218,4 +330,22 @@ func (m *Model) SetPlaceholder() {
 	}
 
 	m.table.SetRows([]table.Row{placeholderRow})
+	m.loadingState = LoadingComplete
+}
+
+func (m *Model) IsLoading() bool {
+	return m.loadingState == LoadingInProgress
+}
+
+func (m *Model) StartLoading() {
+	m.loadingState = LoadingInProgress
+	m.progress.SetPercent(0.0)
+	m.loadError = ""
+}
+
+func (m *Model) UpdateProgress(percent float64) tea.Cmd {
+	if m.loadingState == LoadingInProgress {
+		return m.progress.SetPercent(percent)
+	}
+	return nil
 }
