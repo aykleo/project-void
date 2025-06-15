@@ -24,7 +24,7 @@ func (m Model) View() string {
 	if commandInput := m.commandHandler.RenderCommandInput(contentWidth); commandInput != "" {
 		commandHeader = commandInput
 	} else {
-		navHelp := "w/s: navigate tables • c: commands • esc: exit"
+		navHelp := "\nw/s: navigate tables • c: commands • esc: exit"
 		commandHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
 	}
 
@@ -57,25 +57,23 @@ func (m Model) View() string {
 			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
 		}
 
-		var slackText string
-		if m.slackLoading {
-			slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
-		} else {
-			slackText = "0 Slack messages (coming soon)"
-		}
+		// var slackText string
+		// if m.slackLoading {
+		// 	slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
+		// } else {
+		// 	slackText = "0 Slack messages (coming soon)"
+		// }
 
-		dateInfo := fmt.Sprintf("%s, %s, %s since %s", commitsText, jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
+		dateInfo := fmt.Sprintf("%s, %s since %s", commitsText, jiraText, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
 
 		tableView := m.commitsTable.View()
 		jiraView := m.jiraTable.View()
-		slackView := m.slackTable.View()
 
 		tableViewCentered := tableView
 		jiraViewCentered := jiraView
-		slackViewCentered := slackView
 
-		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
+		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered
 	} else {
 		var jiraText string
 		if m.jiraLoading {
@@ -85,23 +83,21 @@ func (m Model) View() string {
 			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
 		}
 
-		var slackText string
-		if m.slackLoading {
-			slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
-		} else {
-			slackText = "0 Slack messages (coming soon)"
-		}
+		// var slackText string
+		// if m.slackLoading {
+		// 	slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
+		// } else {
+		// 	slackText = "0 Slack messages (coming soon)"
+		// }
 
-		dateInfo := fmt.Sprintf("%s, %s since %s", jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
+		dateInfo := fmt.Sprintf("%s since %s", jiraText, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
 
 		jiraView := m.jiraTable.View()
-		slackView := m.slackTable.View()
 
 		jiraViewStyled := jiraView
-		slackViewStyled := slackView
 
-		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
+		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled
 	}
 
 	fullContent := mainContent + "\n" + commandHeaderCentered
