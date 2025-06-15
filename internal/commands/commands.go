@@ -4,6 +4,17 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	styles "project-void/internal/ui/styles"
+
+	lipgloss "github.com/charmbracelet/lipgloss"
+)
+
+var (
+	sectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230"))
+	commandStyle       = lipgloss.NewStyle().Foreground(styles.HighlightColor)
+	argStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	descStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
 
 type Command struct {
@@ -61,33 +72,80 @@ func (r *Registry) GetAllCommands() []Command {
 
 func (r *Registry) GetHelpText() string {
 	var help strings.Builder
-	help.WriteString("Available Commands:\n\n")
+	help.WriteString(sectionHeaderStyle.Render("Available Commands:") + "\n")
 
 	commands := r.GetAllCommands()
 	for _, cmd := range commands {
-		help.WriteString(fmt.Sprintf("  %s - %s\n", cmd.Name, cmd.Description))
+		help.WriteString(fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render(cmd.Name),
+			descStyle.Render(cmd.Description),
+		))
 	}
 
-	help.WriteString("\nJIRA Configuration Commands:\n")
-	help.WriteString("  jira status - Show current JIRA configuration\n")
-	help.WriteString("  jira url <url> - Set JIRA base URL\n")
-	help.WriteString("  jira user <username> - Set JIRA username\n")
-	help.WriteString("  jira token <token> - Set JIRA API token\n")
-	help.WriteString("  jira project <key> - Set JIRA project key\n")
-	help.WriteString("  jira project <key1,key2> - Set multiple JIRA project keys\n")
-	help.WriteString("  Examples:\n")
-	help.WriteString("    jira url https://mycompany.atlassian.net\n")
-	help.WriteString("    jira user john.doe@company.com\n")
-	help.WriteString("    jira project PROJ1,PROJ2\n")
+	help.WriteString(sectionHeaderStyle.Render("\nJIRA Configuration Commands:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("jira status"),
+			descStyle.Render("Show current JIRA configuration"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira url"),
+			argStyle.Render("<url>"),
+			descStyle.Render("Set JIRA base URL"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira user"),
+			argStyle.Render("<username>"),
+			descStyle.Render("Set JIRA username"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira token"),
+			argStyle.Render("<token>"),
+			descStyle.Render("Set JIRA API token"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira project"),
+			argStyle.Render("<key>"),
+			descStyle.Render("Set JIRA project key"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira project"),
+			argStyle.Render("<key1,key2>"),
+			descStyle.Render("Set multiple JIRA project keys"),
+		),
+	)
 
-	help.WriteString("\nGit Commands (available in development mode):\n")
-	help.WriteString("  git a - Clear author filter and show all commits\n")
-	help.WriteString("  git a <name> - Filter commits by author name\n")
-	help.WriteString("  git a <name1,name2> - Filter commits by multiple author names\n")
-	help.WriteString("  Examples:\n")
-	help.WriteString("    git a - Show all commits (clear filter)\n")
-	help.WriteString("    git a john - Show commits by authors containing 'john'\n")
-	help.WriteString("    git a john,alice - Show commits by authors containing 'john' or 'alice'\n")
+	help.WriteString(sectionHeaderStyle.Render("\nGit Commands (available in development mode):") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("git a"),
+			descStyle.Render("Clear author filter and show all commits"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("git a"),
+			argStyle.Render("<name>"),
+			descStyle.Render("Filter commits by author name"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("git a"),
+			argStyle.Render("<name1,name2>"),
+			descStyle.Render("Filter commits by multiple author names"),
+		),
+	)
 
 	return help.String()
 }
