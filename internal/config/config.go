@@ -10,6 +10,7 @@ import (
 
 type UserConfig struct {
 	Jira JiraConfig `json:"jira"`
+	Git  GitConfig  `json:"git"`
 }
 
 type JiraConfig struct {
@@ -19,6 +20,12 @@ type JiraConfig struct {
 	ProjectKeys    []string `json:"project_keys"`
 	FilterByUser   bool     `json:"filter_by_user"`
 	UserFilterType string   `json:"user_filter_type"`
+}
+
+type GitConfig struct {
+	RepoURL     string `json:"repo_url"`
+	RepoType    string `json:"repo_type"`
+	GitHubToken string `json:"github_token,omitempty"`
 }
 
 const configFileName = ".project-void-config.json"
@@ -42,6 +49,10 @@ func LoadUserConfig() (*UserConfig, error) {
 			Jira: JiraConfig{
 				FilterByUser:   false,
 				UserFilterType: "participant",
+			},
+			Git: GitConfig{
+				RepoURL:  "",
+				RepoType: "local",
 			},
 		}, nil
 	}
@@ -164,4 +175,27 @@ func GetJiraConfigStatus() (string, error) {
 	}
 
 	return status.String(), nil
+}
+
+func SetGitConfig(key, value string) error {
+	config, err := LoadUserConfig()
+	if err != nil {
+		return err
+	}
+
+	switch key {
+	case "repo", "repository", "repo_url":
+		config.Git.RepoURL = value
+		if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "git@") {
+			config.Git.RepoType = "remote"
+		} else {
+			config.Git.RepoType = "local"
+		}
+	case "token", "apitoken", "api_token":
+		config.Git.GitHubToken = value
+	default:
+		return fmt.Errorf("unknown Git config key: %s", key)
+	}
+
+	return SaveUserConfig(config)
 }

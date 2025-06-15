@@ -19,12 +19,66 @@ type Commit struct {
 	Timestamp time.Time
 }
 
+type GitProvider interface {
+	GetCommitsSince(repoURL string, since time.Time) ([]Commit, error)
+	GetCommitsSinceByAuthors(repoURL string, since time.Time, authorNames []string) ([]Commit, error)
+}
+
 func ToMidnight(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
+func isRemoteURL(input string) bool {
+	return strings.HasPrefix(input, "http://") ||
+		strings.HasPrefix(input, "https://") ||
+		strings.HasPrefix(input, "git@")
+}
 
+func GetCommitsSince(repoPathOrURL string, since time.Time) ([]Commit, error) {
+	if isRemoteURL(repoPathOrURL) {
+		provider, err := detectProvider(repoPathOrURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect Git provider: %w", err)
+		}
+		return provider.GetCommitsSince(repoPathOrURL, since)
+	}
+
+	return getCommitsSinceLocal(repoPathOrURL, since)
+}
+
+func GetCommitsSinceByAuthors(repoPathOrURL string, since time.Time, authorNames []string) ([]Commit, error) {
+	if isRemoteURL(repoPathOrURL) {
+		provider, err := detectProvider(repoPathOrURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect Git provider: %w", err)
+		}
+		return provider.GetCommitsSinceByAuthors(repoPathOrURL, since, authorNames)
+	}
+
+	return getCommitsSinceByAuthorsLocal(repoPathOrURL, since, authorNames)
+}
+
+func detectProvider(repoURL string) (GitProvider, error) {
+	if strings.Contains(repoURL, "github.com") {
+		provider := NewGitHubProvider()
+
+		if gitConfig, err := LoadGitConfig(); err == nil && gitConfig.GitHubToken != "" {
+			provider.SetToken(gitConfig.GitHubToken)
+		}
+
+		return provider, nil
+	}
+
+	provider := NewGitHubProvider()
+
+	if gitConfig, err := LoadGitConfig(); err == nil && gitConfig.GitHubToken != "" {
+		provider.SetToken(gitConfig.GitHubToken)
+	}
+
+	return provider, nil
+}
+
+func getCommitsSinceLocal(repoPath string, since time.Time) ([]Commit, error) {
 	since = ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)
@@ -87,7 +141,7 @@ func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
 	return commits, nil
 }
 
-func GetCommitsSinceByAuthors(repoPath string, since time.Time, authorNames []string) ([]Commit, error) {
+func getCommitsSinceByAuthorsLocal(repoPath string, since time.Time, authorNames []string) ([]Commit, error) {
 	since = ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	styles "project-void/internal/ui/styles"
 
@@ -125,7 +126,29 @@ func (r *Registry) GetHelpText() string {
 		),
 	)
 
-	help.WriteString(sectionHeaderStyle.Render("\nGit Commands (available in development mode):") + "\n")
+	help.WriteString(sectionHeaderStyle.Render("\nGit Configuration Commands:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("git status"),
+			descStyle.Render("Show current Git repository configuration"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("git repo"),
+			argStyle.Render("<url-or-path>"),
+			descStyle.Render("Set Git repository URL or local path"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("git token"),
+			argStyle.Render("<github-token>"),
+			descStyle.Render("Set GitHub API token (increases rate limit from 60 to 5,000/hour)"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nGit Analysis Commands (available in development mode):") + "\n")
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
 			commandStyle.Render("git a"),
@@ -147,6 +170,41 @@ func (r *Registry) GetHelpText() string {
 		),
 	)
 
+	help.WriteString(sectionHeaderStyle.Render("\nNavigation Commands:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("start"),
+			descStyle.Render("Start analyzing your data (uses current date by default)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("reset"),
+			descStyle.Render("Return to welcome screen"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("help"),
+			descStyle.Render("Show this help message"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("quit"),
+			descStyle.Render("Exit the application"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nDate Commands:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("void sd"),
+			argStyle.Render("<YYYY-MM-DD>"),
+			descStyle.Render("Set analysis date (e.g., void sd 2025-06-01)"),
+		),
+	)
+
 	return help.String()
 }
 
@@ -155,6 +213,73 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 	if input == "" {
 		return Command{}, fmt.Errorf("command cannot be empty")
+	}
+
+	if strings.HasPrefix(input, "git ") {
+		parts := strings.Fields(input)
+		if len(parts) < 2 {
+			return Command{}, fmt.Errorf("git command requires a subcommand. Use 'help' to see available commands")
+		}
+
+		subCommand := parts[1]
+
+		if subCommand == "status" {
+			return Command{
+				Name:        "git status",
+				Description: "Show current Git repository configuration",
+				Action:      "git_status",
+			}, nil
+		}
+
+		if subCommand == "repo" || subCommand == "repository" {
+			if len(parts) < 3 {
+				return Command{}, fmt.Errorf("git %s command requires a value. Usage: git %s <url-or-path>", subCommand, subCommand)
+			}
+
+			value := strings.Join(parts[2:], " ")
+			return Command{
+				Name:        fmt.Sprintf("git repo %s", value),
+				Description: "Set Git repository URL or path",
+				Action:      "git_set_repo",
+			}, nil
+		}
+
+		if subCommand == "token" {
+			if len(parts) < 3 {
+				return Command{}, fmt.Errorf("git token command requires a value. Usage: git token <github-api-token>")
+			}
+
+			value := strings.Join(parts[2:], " ")
+			return Command{
+				Name:        fmt.Sprintf("git token %s", value),
+				Description: "Set GitHub API token for increased rate limits",
+				Action:      "git_set_token",
+			}, nil
+		}
+
+		if subCommand == "a" {
+			authorNames := ""
+			if len(parts) > 2 {
+				authorNames = strings.Join(parts[2:], " ")
+				authorNames = strings.TrimSpace(authorNames)
+			}
+
+			if authorNames == "" {
+				return Command{
+					Name:        "git a",
+					Description: "Clear author filter and show all commits",
+					Action:      "clear_author_filter",
+				}, nil
+			}
+
+			return Command{
+				Name:        "git a " + authorNames,
+				Description: "Filter commits by author name(s)",
+				Action:      "filter_by_author",
+			}, nil
+		}
+
+		return Command{}, fmt.Errorf("unknown git subcommand: %s\nAvailable: status, repo, token, a", subCommand)
 	}
 
 	if strings.HasPrefix(input, "git a ") || input == "git a" {
@@ -231,14 +356,58 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 		}
 	}
 
+	if strings.HasPrefix(input, "void ") {
+		parts := strings.Fields(input)
+		if len(parts) < 2 {
+			return Command{}, fmt.Errorf("void command requires a subcommand. Use 'help' to see available commands")
+		}
+
+		subCommand := parts[1]
+
+		if subCommand == "sd" {
+			if len(parts) < 3 {
+				return Command{}, fmt.Errorf("void sd command requires a date. Usage: void sd <YYYY-MM-DD>")
+			}
+
+			dateStr := parts[2]
+			_, err := time.Parse("2006-01-02", dateStr)
+			if err != nil {
+				return Command{}, fmt.Errorf("invalid date format. Use YYYY-MM-DD format (e.g., void sd 2025-06-01)")
+			}
+
+			return Command{
+				Name:        fmt.Sprintf("void sd %s", dateStr),
+				Description: "Set analysis date",
+				Action:      "void_set_date",
+			}, nil
+		}
+
+		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: sd", subCommand)
+	}
+
 	cleanName := strings.TrimPrefix(input, "./")
 
 	cmd, exists := r.commands[cleanName]
 	if !exists {
-		return Command{}, fmt.Errorf("unknown command: %s\nType 'help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
+		return Command{}, fmt.Errorf("unknown command: %s\nType 'help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
 	}
 
 	return cmd, nil
+}
+
+func GetGitConfigValue(commandName string) (string, string) {
+	if !strings.HasPrefix(commandName, "git ") {
+		return "", ""
+	}
+
+	parts := strings.Fields(commandName)
+	if len(parts) < 3 {
+		return "", ""
+	}
+
+	key := parts[1]
+	value := strings.Join(parts[2:], " ")
+	return key, value
 }
 
 func GetJiraConfigValue(commandName string) (string, string) {
@@ -283,21 +452,41 @@ func GetAuthorNamesFromCommand(commandName string) []string {
 		return nil
 	}
 
-	authorNames := strings.TrimPrefix(commandName, "git a ")
-	authorNames = strings.TrimSpace(authorNames)
+	authorPart := strings.TrimPrefix(commandName, "git a ")
+	authorPart = strings.TrimSpace(authorPart)
 
-	if authorNames == "" {
+	if authorPart == "" {
 		return nil
 	}
 
-	names := strings.Split(authorNames, ",")
-	var cleanNames []string
-	for _, name := range names {
-		cleanName := strings.TrimSpace(name)
-		if cleanName != "" {
-			cleanNames = append(cleanNames, cleanName)
+	authors := strings.Split(authorPart, ",")
+	var cleanAuthors []string
+	for _, author := range authors {
+		cleanAuthor := strings.TrimSpace(author)
+		if cleanAuthor != "" {
+			cleanAuthors = append(cleanAuthors, cleanAuthor)
 		}
 	}
 
-	return cleanNames
+	return cleanAuthors
+}
+
+func GetDateFromCommand(commandName string) (time.Time, error) {
+	if !strings.HasPrefix(commandName, "void sd ") {
+		return time.Time{}, fmt.Errorf("not a void sd command")
+	}
+
+	datePart := strings.TrimPrefix(commandName, "void sd ")
+	datePart = strings.TrimSpace(datePart)
+
+	if datePart == "" {
+		return time.Time{}, fmt.Errorf("no date provided")
+	}
+
+	parsedDate, err := time.Parse("2006-01-02", datePart)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid date format: %w", err)
+	}
+
+	return parsedDate, nil
 }

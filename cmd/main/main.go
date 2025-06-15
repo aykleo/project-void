@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
-	"project-void/internal/ui/home"
+	"project-void/internal/git"
 	"project-void/internal/ui/statistics"
 	"project-void/internal/ui/welcome"
 
@@ -16,14 +17,12 @@ type AppState int
 
 const (
 	WelcomeState AppState = iota
-	HomeState
 	StatisticsState
 )
 
 type MainModel struct {
 	state        AppState
 	welcomeModel welcome.Model
-	homeModel    home.Model
 	statsModel   statistics.Model
 	width        int
 	height       int
@@ -33,7 +32,6 @@ func InitialMainModel() MainModel {
 	return MainModel{
 		state:        WelcomeState,
 		welcomeModel: welcome.InitialModel(),
-		homeModel:    home.InitialModel(),
 	}
 }
 
@@ -58,29 +56,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-	case home.ProceedMsg:
-		if m.homeModel.ShouldProceed() {
-			m.state = StatisticsState
-			selectedFolder := m.homeModel.GetSelectedFolder()
-			selectedDate := m.homeModel.GetSelectedDate()
-			isDev := m.homeModel.IsDevMode()
-
-			if selectedDate != nil {
-				m.statsModel = statistics.InitialModel(selectedFolder, *selectedDate, isDev)
-				var cmds []tea.Cmd
-				cmds = append(cmds, m.statsModel.Init())
-				if m.width > 0 && m.height > 0 {
-					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
-					updatedStats, cmd := m.statsModel.Update(windowSizeMsg)
-					m.statsModel = updatedStats.(statistics.Model)
-					if cmd != nil {
-						cmds = append(cmds, cmd)
-					}
-				}
-				return m, tea.Batch(cmds...)
-			}
-		}
-		return m, nil
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -88,10 +63,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case WelcomeState:
 			updatedWelcome, cmd := m.welcomeModel.Update(msg)
 			m.welcomeModel = updatedWelcome.(welcome.Model)
-			return m, cmd
-		case HomeState:
-			updatedHome, cmd := m.homeModel.Update(msg)
-			m.homeModel = updatedHome.(home.Model)
 			return m, cmd
 		case StatisticsState:
 			updatedStats, cmd := m.statsModel.Update(msg)
@@ -111,14 +82,33 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch command {
 			case "start":
-				m.state = HomeState
+				m.state = StatisticsState
+
+				var selectedDate time.Time
+				if welcomeDate := m.welcomeModel.GetSelectedDate(); welcomeDate != nil {
+					selectedDate = *welcomeDate
+				} else {
+					selectedDate = time.Now()
+				}
+
+				repoSource := git.GetConfiguredRepoSource()
+
+				m.statsModel = statistics.InitialModel(repoSource, selectedDate, false)
+
+				initCmd := m.statsModel.Init()
+
+				var cmds []tea.Cmd
+				cmds = append(cmds, tea.EnterAltScreen, initCmd)
 				if m.width > 0 && m.height > 0 {
 					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
-					updatedHome, cmd := m.homeModel.Update(windowSizeMsg)
-					m.homeModel = updatedHome.(home.Model)
-					return m, cmd
+					updatedStats, sizeCmd := m.statsModel.Update(windowSizeMsg)
+					m.statsModel = updatedStats.(statistics.Model)
+					if sizeCmd != nil {
+						cmds = append(cmds, sizeCmd)
+					}
 				}
-				return m, nil
+
+				return m, tea.Batch(cmds...)
 			case "reset":
 				return m, nil
 			case "quit":
@@ -128,10 +118,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		return m, cmd
-	case HomeState:
-		updatedHome, cmd := m.homeModel.Update(msg)
-		m.homeModel = updatedHome.(home.Model)
 		return m, cmd
 	case StatisticsState:
 		updatedStats, cmd := m.statsModel.Update(msg)
@@ -143,13 +129,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch command {
 			case "start":
-				m.state = HomeState
-				if m.width > 0 && m.height > 0 {
-					windowSizeMsg := tea.WindowSizeMsg{Width: m.width, Height: m.height}
-					updatedHome, cmd := m.homeModel.Update(windowSizeMsg)
-					m.homeModel = updatedHome.(home.Model)
-					return m, cmd
-				}
 				return m, nil
 			case "reset":
 				m.state = WelcomeState
@@ -175,8 +154,6 @@ func (m MainModel) View() string {
 	switch m.state {
 	case WelcomeState:
 		return m.welcomeModel.View()
-	case HomeState:
-		return m.homeModel.View()
 	case StatisticsState:
 		return m.statsModel.View()
 	}
@@ -184,7 +161,6 @@ func (m MainModel) View() string {
 }
 
 func main() {
-
 	err := godotenv.Load()
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Printf("Error loading .env file: %v\n", err)

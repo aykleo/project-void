@@ -3,6 +3,7 @@ package statistics
 import (
 	"fmt"
 	"project-void/internal/commands"
+	"project-void/internal/config"
 	"project-void/internal/jira"
 	"project-void/internal/ui/common"
 	commitstable "project-void/internal/ui/statistics/commits-table"
@@ -18,27 +19,28 @@ import (
 )
 
 type Model struct {
-	commitsTable   commitstable.Model
-	jiraTable      jiratable.Model
-	slackTable     slacktable.Model
-	commandHandler common.CommandHandler
-	selectedFolder string
-	selectedDate   time.Time
-	isDev          bool
-	width          int
-	height         int
-	loaded         bool
-	loadError      string
-	focusedTable   int
-	command        string
-	submitted      bool
-	authorFilter   []string
-	commitsSpinner spinner.Model
-	jiraSpinner    spinner.Model
-	slackSpinner   spinner.Model
-	commitsLoading bool
-	jiraLoading    bool
-	slackLoading   bool
+	commitsTable       commitstable.Model
+	jiraTable          jiratable.Model
+	slackTable         slacktable.Model
+	commandHandler     common.StatisticsCommandHandler
+	selectedFolder     string
+	selectedRepoSource string
+	selectedDate       time.Time
+	isDev              bool
+	width              int
+	height             int
+	loaded             bool
+	loadError          string
+	focusedTable       int
+	command            string
+	submitted          bool
+	authorFilter       []string
+	commitsSpinner     spinner.Model
+	jiraSpinner        spinner.Model
+	slackSpinner       spinner.Model
+	commitsLoading     bool
+	jiraLoading        bool
+	slackLoading       bool
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -64,7 +66,16 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	slackSpinner.Style = spinnerStyle
 	slackSpinner.Spinner = spinner.Dot
 
-	if isDev {
+	repoSource := selectedFolder
+	if selectedFolder == "" {
+		if gitConfig, err := config.LoadUserConfig(); err == nil && gitConfig.Git.RepoURL != "" {
+			repoSource = gitConfig.Git.RepoURL
+		}
+	}
+
+	actualIsDev := repoSource != ""
+
+	if actualIsDev {
 		commitsTable.Focus()
 		commitsTable.SetFocusedStyle()
 		jiraTable.Blur()
@@ -83,26 +94,27 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	slackTable.SetSpinner(&slackSpinner)
 
 	return Model{
-		commitsTable:   commitsTable,
-		jiraTable:      jiraTable,
-		slackTable:     slackTable,
-		commandHandler: common.NewCommandHandler("Enter a command (e.g., git a, help)..."),
-		selectedFolder: selectedFolder,
-		selectedDate:   selectedDate,
-		isDev:          isDev,
-		focusedTable:   0,
-		commitsSpinner: commitsSpinner,
-		jiraSpinner:    jiraSpinner,
-		slackSpinner:   slackSpinner,
-		commitsLoading: true,
-		jiraLoading:    true,
-		slackLoading:   true,
+		commitsTable:       commitsTable,
+		jiraTable:          jiraTable,
+		slackTable:         slackTable,
+		commandHandler:     common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, help)...", repoSource, actualIsDev),
+		selectedFolder:     selectedFolder,
+		selectedRepoSource: repoSource,
+		selectedDate:       selectedDate,
+		isDev:              actualIsDev,
+		focusedTable:       0,
+		commitsSpinner:     commitsSpinner,
+		jiraSpinner:        jiraSpinner,
+		slackSpinner:       slackSpinner,
+		commitsLoading:     true,
+		jiraLoading:        true,
+		slackLoading:       true,
 	}
 }
 
-func loadCommitsCmd(folder string, since time.Time) tea.Cmd {
+func loadCommitsCmd(repoSource string, since time.Time) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
-		if folder == "" {
+		if repoSource == "" {
 			emptyTable := commitstable.InitialModel()
 			emptyTable.StartLoading()
 			return LoadedMsg{CommitsTable: emptyTable}
@@ -110,7 +122,7 @@ func loadCommitsCmd(folder string, since time.Time) tea.Cmd {
 
 		var commitsTable commitstable.Model = commitstable.InitialModel()
 		commitsTable.StartLoading()
-		err := commitsTable.LoadCommits(folder, since)
+		err := commitsTable.LoadCommits(repoSource, since)
 		if err != nil {
 			return LoadErrorMsg{Error: err.Error()}
 		}
@@ -119,9 +131,9 @@ func loadCommitsCmd(folder string, since time.Time) tea.Cmd {
 	})
 }
 
-func loadCommitsByAuthorsCmd(folder string, since time.Time, authorNames []string) tea.Cmd {
+func loadCommitsByAuthorsCmd(repoSource string, since time.Time, authorNames []string) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
-		if folder == "" {
+		if repoSource == "" {
 			emptyTable := commitstable.InitialModel()
 			emptyTable.StartLoading()
 			return LoadedMsg{CommitsTable: emptyTable}
@@ -129,7 +141,7 @@ func loadCommitsByAuthorsCmd(folder string, since time.Time, authorNames []strin
 
 		var commitsTable commitstable.Model = commitstable.InitialModel()
 		commitsTable.StartLoading()
-		err := commitsTable.LoadCommitsByAuthors(folder, since, authorNames)
+		err := commitsTable.LoadCommitsByAuthors(repoSource, since, authorNames)
 		if err != nil {
 			return LoadErrorMsg{Error: err.Error()}
 		}
@@ -180,7 +192,7 @@ func (m Model) Init() tea.Cmd {
 		m.commitsSpinner.Tick,
 		m.jiraSpinner.Tick,
 		m.slackSpinner.Tick,
-		loadCommitsCmd(m.selectedFolder, m.selectedDate),
+		loadCommitsCmd(m.selectedRepoSource, m.selectedDate),
 		loadJiraCmd(m.selectedDate),
 		loadSlackCmd(),
 	)
@@ -338,11 +350,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, cmd
 						}
 
-						if m.isDev && m.selectedFolder != "" {
+						if m.isDev && m.selectedRepoSource != "" {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.authorFilter = authorNames
 							m.commitsLoading = true
-							loadCmd := loadCommitsByAuthorsCmd(m.selectedFolder, m.selectedDate, authorNames)
+							loadCmd := loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, authorNames)
 							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 						} else {
 							m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
@@ -352,11 +364,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "clear_author_filter" {
-					if m.isDev && m.selectedFolder != "" {
+					if m.isDev && m.selectedRepoSource != "" {
 						m.authorFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
+						loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					} else {
 						m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
@@ -365,17 +377,53 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "start" || result.Action == "reset" {
-					if m.isDev && m.selectedFolder != "" && len(m.authorFilter) > 0 {
+					if m.isDev && m.selectedRepoSource != "" && len(m.authorFilter) > 0 {
 						m.authorFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
+						loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
 						m.command = result.Action
 						m.submitted = true
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					}
 					m.command = result.Action
 					m.submitted = true
+					return m, cmd
+				}
+
+				if result.Action == "void_set_date" {
+					if dateData, ok := result.Data["date"].(time.Time); ok {
+						m.selectedDate = dateData
+						m.commandHandler.ClearMessages()
+
+						var cmds []tea.Cmd
+
+						if m.isDev && m.selectedRepoSource != "" {
+							m.commitsLoading = true
+							tickCmd := m.commitsTable.StartLoadingWithCmd()
+							cmds = append(cmds, tickCmd, m.commitsSpinner.Tick)
+
+							if len(m.authorFilter) > 0 {
+								loadCmd := loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
+								cmds = append(cmds, loadCmd)
+							} else {
+								loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+								cmds = append(cmds, loadCmd)
+							}
+						}
+
+						m.jiraLoading = true
+						m.jiraTable.StartLoading()
+						jiraLoadCmd := loadJiraCmd(m.selectedDate)
+						cmds = append(cmds, jiraLoadCmd, m.jiraSpinner.Tick)
+
+						m.slackLoading = true
+						m.slackTable.StartLoading()
+						slackLoadCmd := loadSlackCmd()
+						cmds = append(cmds, slackLoadCmd, m.slackSpinner.Tick)
+
+						return m, tea.Batch(cmds...)
+					}
 					return m, cmd
 				}
 			}
@@ -613,21 +661,18 @@ func (m Model) View() string {
 		commandHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
 	}
 
-	commandHeaderCentered := lipgloss.NewStyle().
-		Width(contentWidth).
-		Align(lipgloss.Center).
-		Render(commandHeader)
+	commandHeaderCentered := commandHeader
 
 	var mainContent string
-	if m.isDev && m.selectedFolder != "" {
-		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedFolder)
+	if m.isDev && m.selectedRepoSource != "" {
+		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
 
 		if len(m.authorFilter) > 0 {
 			authorFilterText := strings.Join(m.authorFilter, ", ")
 			commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
 		}
 
-		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
+		header := styles.WelcomeStyle.Render(commitsHeader)
 
 		var commitsText string
 		if m.commitsLoading {
@@ -653,15 +698,15 @@ func (m Model) View() string {
 		}
 
 		dateInfo := fmt.Sprintf("%s, %s, %s since %s", commitsText, jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
-		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
+		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
 
 		tableView := m.commitsTable.View()
 		jiraView := m.jiraTable.View()
 		slackView := m.slackTable.View()
 
-		tableViewCentered := styles.NeutralStyle.Width(contentWidth).Render(tableView)
-		jiraViewCentered := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
-		slackViewCentered := styles.NeutralStyle.Width(contentWidth).Render(slackView)
+		tableViewCentered := tableView
+		jiraViewCentered := jiraView
+		slackViewCentered := slackView
 
 		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 	} else {
@@ -681,13 +726,13 @@ func (m Model) View() string {
 		}
 
 		dateInfo := fmt.Sprintf("%s, %s since %s", jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
-		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
+		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
 
 		jiraView := m.jiraTable.View()
 		slackView := m.slackTable.View()
 
-		jiraViewStyled := styles.NeutralStyle.Width(contentWidth).Render(jiraView)
-		slackViewStyled := styles.NeutralStyle.Width(contentWidth).Render(slackView)
+		jiraViewStyled := jiraView
+		slackViewStyled := slackView
 
 		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
 	}

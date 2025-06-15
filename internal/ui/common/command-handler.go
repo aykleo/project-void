@@ -6,6 +6,8 @@ import (
 	"project-void/internal/config"
 	"project-void/internal/ui/styles"
 
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -118,29 +120,13 @@ func (h CommandHandler) Update(msg tea.Msg) (CommandHandler, tea.Cmd, *CommandRe
 }
 
 func (h CommandHandler) processCommand() (CommandHandler, tea.Cmd, *CommandResult) {
-	inputValue := h.textInput.Value()
-	validatedCmd, err := commands.ValidateCommand(inputValue)
+	input := h.textInput.Value()
+	command, err := commands.ValidateCommand(input)
 	if err != nil {
 		h.commandError = err.Error()
+		h.successMessage = ""
 		h.textInput.SetValue("")
 		return h, nil, nil
-	}
-
-	h.textInput.SetValue("")
-	h.showingCommand = false
-
-	if validatedCmd.Action == "help" {
-		h.showingHelp = true
-		h.commandError = ""
-		h.successMessage = ""
-		return h, nil, nil
-	}
-
-	if validatedCmd.Action == "quit" {
-		return h, tea.Quit, &CommandResult{
-			Action:     "quit",
-			ShouldQuit: true,
-		}
 	}
 
 	navigationCommands := map[string]string{
@@ -148,25 +134,89 @@ func (h CommandHandler) processCommand() (CommandHandler, tea.Cmd, *CommandResul
 		"reset": "welcome",
 	}
 
-	if navigateTo, isNavigation := navigationCommands[validatedCmd.Action]; isNavigation {
+	if navigateTo, isNavigation := navigationCommands[command.Action]; isNavigation {
+		h.commandError = ""
+		h.successMessage = ""
+		h.textInput.SetValue("")
 		return h, nil, &CommandResult{
-			Action:         validatedCmd.Action,
+			Action:         command.Action,
 			Success:        true,
 			ShouldNavigate: true,
 			NavigateTo:     navigateTo,
 		}
 	}
 
-	if result := h.handleJiraCommands(validatedCmd); result != nil {
+	if result := h.handleJiraCommands(command); result != nil {
 		h.commandError = ""
-		h.successMessage = result.Message
+		if result.Success {
+			h.successMessage = result.Message
+		} else {
+			h.commandError = result.Message
+		}
+		h.textInput.SetValue("")
 		return h, nil, result
 	}
 
+	if result := h.handleGitCommands(command); result != nil {
+		h.commandError = ""
+		if result.Success {
+			h.successMessage = result.Message
+		} else {
+			h.commandError = result.Message
+		}
+		h.textInput.SetValue("")
+		return h, nil, result
+	}
+
+	if command.Action == "help" || command.Name == "help" {
+		h.showingHelp = true
+		h.showingCommand = false
+		h.commandError = ""
+		h.successMessage = ""
+		h.textInput.SetValue("")
+		return h, nil, &CommandResult{
+			Action:  "help",
+			Success: true,
+		}
+	}
+
+	if command.Action == "quit" {
+		h.textInput.SetValue("")
+		return h, tea.Quit, &CommandResult{
+			Action:     "quit",
+			ShouldQuit: true,
+		}
+	}
+
+	if command.Action == "void_set_date" {
+		date, err := commands.GetDateFromCommand(command.Name)
+		if err != nil {
+			h.commandError = fmt.Sprintf("Error parsing date: %v", err)
+			h.successMessage = ""
+			h.textInput.SetValue("")
+			return h, nil, nil
+		}
+
+		h.commandError = ""
+		h.successMessage = fmt.Sprintf("✓ Analysis date set to: %s", date.Format("January 2, 2006"))
+		h.textInput.SetValue("")
+		return h, nil, &CommandResult{
+			Action:  "void_set_date",
+			Success: true,
+			Message: h.successMessage,
+			Data:    map[string]interface{}{"date": date},
+		}
+	}
+
+	h.commandError = ""
+	h.successMessage = ""
+	h.textInput.SetValue("")
+
 	return h, nil, &CommandResult{
-		Action:  validatedCmd.Action,
-		Success: true,
-		Data:    map[string]interface{}{"command": validatedCmd},
+		Action:         command.Action,
+		Success:        true,
+		ShouldNavigate: false,
+		Data:           map[string]interface{}{"command": command},
 	}
 }
 
@@ -286,6 +336,98 @@ func (h CommandHandler) handleJiraCommands(cmd commands.Command) *CommandResult 
 			Action:  "jira_set_project",
 			Success: true,
 			Message: fmt.Sprintf("✓ JIRA project key(s) set to: %s", value),
+		}
+	}
+
+	return nil
+}
+
+func (h CommandHandler) handleGitCommands(cmd commands.Command) *CommandResult {
+	switch cmd.Action {
+	case "git_status":
+		gitConfig, err := config.LoadUserConfig()
+		if err != nil {
+			return &CommandResult{
+				Action:  "git_status",
+				Success: false,
+				Message: fmt.Sprintf("Failed to load Git config: %v", err),
+			}
+		}
+
+		if gitConfig.Git.RepoURL == "" {
+			return &CommandResult{
+				Action:  "git_status",
+				Success: true,
+				Message: "No Git repository configured\nUse 'git repo <url-or-path>' to set a repository",
+			}
+		}
+
+		status := fmt.Sprintf("Git Repository: %s\nType: %s", gitConfig.Git.RepoURL, gitConfig.Git.RepoType)
+		return &CommandResult{
+			Action:  "git_status",
+			Success: true,
+			Message: status,
+		}
+
+	case "git_set_repo":
+		key, value := commands.GetGitConfigValue(cmd.Name)
+		if key == "" || value == "" {
+			return &CommandResult{
+				Action:  "git_set_repo",
+				Success: false,
+				Message: "Invalid git repo command",
+			}
+		}
+
+		err := config.SetGitConfig("repo", value)
+		if err != nil {
+			return &CommandResult{
+				Action:  "git_set_repo",
+				Success: false,
+				Message: fmt.Sprintf("Failed to set Git repository: %v", err),
+			}
+		}
+
+		repoType := "local"
+		if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "git@") {
+			repoType = "remote"
+		}
+
+		return &CommandResult{
+			Action:  "git_set_repo",
+			Success: true,
+			Message: fmt.Sprintf("✓ Git repository set to: %s (%s)", value, repoType),
+			Data:    map[string]interface{}{"repoURL": value, "repoType": repoType},
+		}
+
+	case "git_set_token":
+		key, value := commands.GetGitConfigValue(cmd.Name)
+		if key == "" || value == "" {
+			return &CommandResult{
+				Action:  "git_set_token",
+				Success: false,
+				Message: "Invalid git token command",
+			}
+		}
+
+		err := config.SetGitConfig("token", value)
+		if err != nil {
+			return &CommandResult{
+				Action:  "git_set_token",
+				Success: false,
+				Message: fmt.Sprintf("Failed to set GitHub token: %v", err),
+			}
+		}
+
+		maskedToken := value
+		if len(maskedToken) > 8 {
+			maskedToken = maskedToken[:4] + "..." + maskedToken[len(maskedToken)-4:]
+		}
+
+		return &CommandResult{
+			Action:  "git_set_token",
+			Success: true,
+			Message: fmt.Sprintf("✓ GitHub API token set: %s\nRate limit increased from 60 to 5,000 requests per hour!", maskedToken),
 		}
 	}
 
@@ -421,6 +563,21 @@ func (h StatisticsCommandHandler) processCommand() (StatisticsCommandHandler, te
 		return h, tea.Quit, &CommandResult{
 			Action:     "quit",
 			ShouldQuit: true,
+		}
+	}
+
+	if validatedCmd.Action == "void_set_date" {
+		date, err := commands.GetDateFromCommand(validatedCmd.Name)
+		if err != nil {
+			h.commandError = fmt.Sprintf("Error parsing date: %v", err)
+			return h, nil, nil
+		}
+
+		return h, nil, &CommandResult{
+			Action:  "void_set_date",
+			Success: true,
+			Message: fmt.Sprintf("✓ Analysis date set to: %s", date.Format("January 2, 2006")),
+			Data:    map[string]interface{}{"date": date},
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"project-void/internal/ui/common"
 	"project-void/internal/ui/styles"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,12 +16,14 @@ type Model struct {
 	height         int
 	command        string
 	submitted      bool
+	selectedDate   *time.Time
 }
 
 func InitialModel() Model {
 	return Model{
-		commandHandler: common.NewCommandHandler("Enter a command (e.g., start, help)..."),
+		commandHandler: common.NewCommandHandler("Enter a command (e.g., start, git repo <url>, help)..."),
 		submitted:      false,
+		selectedDate:   nil,
 	}
 }
 
@@ -48,6 +51,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.submitted = true
 			return m, cmd
 		}
+
+		if result.Success && result.Action == "void_set_date" {
+			if dateData, ok := result.Data["date"].(time.Time); ok {
+				m.selectedDate = &dateData
+			}
+			return m, cmd
+		}
+
+		if result.Success {
+			return m, cmd
+		}
 	}
 
 	return m, cmd
@@ -61,14 +75,14 @@ func (m Model) View() string {
 	welcomeText := "Welcome to Project Void"
 	welcomeStyled := styles.WelcomeStyle.Render(welcomeText)
 
-	description := "Enter commands below to navigate and interact with the system"
+	description := "Configure your Git repository and start analyzing your productivity data"
 	descriptionStyled := styles.NeutralStyle.Render(description)
 
 	var inputSection string
 	if m.submitted {
 		inputSection = styles.NeutralStyle.Render(fmt.Sprintf("Command processed: %s\n\nNavigating...", m.command))
 	} else {
-		helpText := "Try 'help' to see available commands"
+		helpText := "Use 'git repo <url>' to configure a repository, 'void sd <date>' to set analysis date, or 'start' to begin"
 		inputSection = m.commandHandler.RenderCommandPrompt(helpText)
 	}
 
@@ -95,4 +109,8 @@ func (m *Model) ResetCommand() {
 	m.submitted = false
 	m.command = ""
 	m.commandHandler.ClearMessages()
+}
+
+func (m Model) GetSelectedDate() *time.Time {
+	return m.selectedDate
 }
