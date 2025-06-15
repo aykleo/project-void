@@ -369,6 +369,23 @@ func (h CommandHandler) handleGitCommands(cmd commands.Command) *CommandResult {
 			Message: status,
 		}
 
+	case "git_clear_repo":
+		err := config.ClearGitRepo()
+		if err != nil {
+			return &CommandResult{
+				Action:  "git_clear_repo",
+				Success: false,
+				Message: fmt.Sprintf("Failed to clear Git repository: %v", err),
+			}
+		}
+
+		return &CommandResult{
+			Action:  "git_clear_repo",
+			Success: true,
+			Message: "✓ Git repository configuration cleared",
+			Data:    map[string]interface{}{"repoURL": "", "repoType": ""},
+		}
+
 	case "git_set_repo":
 		key, value := commands.GetGitConfigValue(cmd.Name)
 		if key == "" || value == "" {
@@ -596,6 +613,12 @@ func (h StatisticsCommandHandler) processCommand() (StatisticsCommandHandler, te
 	}
 
 	if result := h.CommandHandler.handleJiraCommands(validatedCmd); result != nil {
+		h.CommandHandler.commandError = ""
+		h.CommandHandler.successMessage = result.Message
+		return h, nil, result
+	}
+
+	if result := h.CommandHandler.handleGitCommands(validatedCmd); result != nil {
 		h.CommandHandler.commandError = ""
 		h.CommandHandler.successMessage = result.Message
 		return h, nil, result

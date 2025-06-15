@@ -33,13 +33,10 @@ func NewRegistry() *Registry {
 		commands: make(map[string]Command),
 	}
 
-	registry.RegisterCommand("help", "Show all available commands", "help")
-	registry.RegisterCommand("start", "Go to the home page to start working", "start")
-	registry.RegisterCommand("reset", "Go back to the welcome screen", "reset")
-	registry.RegisterCommand("dev", "Activate development mode to select a local git repository and see commits", "dev")
-	registry.RegisterCommand("nodev", "Continue without development mode", "nodev")
-	registry.RegisterCommand("quit", "Exit the application", "quit")
-	registry.RegisterCommand("exit", "Exit the application", "quit")
+	registry.RegisterCommand("void help", "Show all available commands", "help")
+	registry.RegisterCommand("void st", "Go to the statistics screen", "start")
+	registry.RegisterCommand("void reset", "Go back to the starting screen", "reset")
+	registry.RegisterCommand("void q", "Exit the application", "quit")
 
 	return registry
 }
@@ -73,15 +70,6 @@ func (r *Registry) GetAllCommands() []Command {
 
 func (r *Registry) GetHelpText() string {
 	var help strings.Builder
-	help.WriteString(sectionHeaderStyle.Render("Available Commands:") + "\n")
-
-	commands := r.GetAllCommands()
-	for _, cmd := range commands {
-		help.WriteString(fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render(cmd.Name),
-			descStyle.Render(cmd.Description),
-		))
-	}
 
 	help.WriteString(sectionHeaderStyle.Render("\nJIRA Configuration Commands:") + "\n")
 	help.WriteString(
@@ -134,6 +122,12 @@ func (r *Registry) GetHelpText() string {
 		),
 	)
 	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			commandStyle.Render("git repo"),
+			descStyle.Render("Clear Git repository configuration"),
+		),
+	)
+	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("git repo"),
 			argStyle.Render("<url-or-path>"),
@@ -170,33 +164,31 @@ func (r *Registry) GetHelpText() string {
 		),
 	)
 
-	help.WriteString(sectionHeaderStyle.Render("\nNavigation Commands:") + "\n")
+	help.WriteString(sectionHeaderStyle.Render("\nGeneral Commands:") + "\n")
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("start"),
+			commandStyle.Render("void st"),
 			descStyle.Render("Start analyzing your data (uses current date by default)"),
 		),
 	)
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("reset"),
+			commandStyle.Render("void reset"),
 			descStyle.Render("Return to welcome screen"),
 		),
 	)
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("help"),
+			commandStyle.Render("void help"),
 			descStyle.Render("Show this help message"),
 		),
 	)
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("quit"),
+			commandStyle.Render("void q"),
 			descStyle.Render("Exit the application"),
 		),
 	)
-
-	help.WriteString(sectionHeaderStyle.Render("\nDate Commands:") + "\n")
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("void sd"),
@@ -233,7 +225,11 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 		if subCommand == "repo" || subCommand == "repository" {
 			if len(parts) < 3 {
-				return Command{}, fmt.Errorf("git %s command requires a value. Usage: git %s <url-or-path>", subCommand, subCommand)
+				return Command{
+					Name:        "git repo",
+					Description: "Clear Git repository configuration",
+					Action:      "git_clear_repo",
+				}, nil
 			}
 
 			value := strings.Join(parts[2:], " ")
@@ -359,7 +355,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 	if strings.HasPrefix(input, "void ") {
 		parts := strings.Fields(input)
 		if len(parts) < 2 {
-			return Command{}, fmt.Errorf("void command requires a subcommand. Use 'help' to see available commands")
+			return Command{}, fmt.Errorf("void command requires a subcommand. Use 'void help' to see available commands")
 		}
 
 		subCommand := parts[1]
@@ -382,14 +378,19 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: sd", subCommand)
+		cmd, exists := r.commands[input]
+		if exists {
+			return cmd, nil
+		}
+
+		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, st, reset, q, sd", subCommand)
 	}
 
 	cleanName := strings.TrimPrefix(input, "./")
 
 	cmd, exists := r.commands[cleanName]
 	if !exists {
-		return Command{}, fmt.Errorf("unknown command: %s\nType 'help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
+		return Command{}, fmt.Errorf("unknown command: %s\nType 'void help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
 	}
 
 	return cmd, nil

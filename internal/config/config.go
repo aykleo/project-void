@@ -199,3 +199,15 @@ func SetGitConfig(key, value string) error {
 
 	return SaveUserConfig(config)
 }
+
+func ClearGitRepo() error {
+	config, err := LoadUserConfig()
+	if err != nil {
+		return err
+	}
+
+	config.Git.RepoURL = ""
+	config.Git.RepoType = "local"
+
+	return SaveUserConfig(config)
+}

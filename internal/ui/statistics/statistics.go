@@ -426,6 +426,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return m, cmd
 				}
+
+				if result.Action == "git_set_repo" || result.Action == "git_clear_repo" {
+					if result.Success {
+						if repoData, ok := result.Data["repoURL"].(string); ok {
+							m.selectedRepoSource = repoData
+
+							m.isDev = m.selectedRepoSource != ""
+
+							m.authorFilter = nil
+
+							if m.isDev && m.selectedRepoSource != "" {
+								m.commitsLoading = true
+								tickCmd := m.commitsTable.StartLoadingWithCmd()
+								loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+								return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
+							} else {
+								m.commitsTable = commitstable.InitialModel()
+								return m, cmd
+							}
+						}
+					}
+					return m, cmd
+				}
 			}
 
 			return m, cmd
