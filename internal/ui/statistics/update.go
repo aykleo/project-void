@@ -116,7 +116,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() {
+		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() || m.commandHandler.IsShowingGitHelp() {
 			updatedHandler, cmd, result := m.commandHandler.Update(msg)
 			m.commandHandler = updatedHandler
 
