@@ -23,8 +23,11 @@ func NewRegistry() *Registry {
 	}
 
 	registry.RegisterCommand("void help", "Show all available commands", "help")
+	registry.RegisterCommand("void h", "Show all available commands", "help")
+	registry.RegisterCommand("void start", "Go to the statistics screen", "start")
 	registry.RegisterCommand("void st", "Go to the statistics screen", "start")
 	registry.RegisterCommand("void reset", "Go back to the starting screen", "reset")
+	registry.RegisterCommand("void quit", "Exit the application", "quit")
 	registry.RegisterCommand("void q", "Exit the application", "quit")
 
 	return registry
@@ -72,7 +75,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 		subCommand := parts[1]
 
-		if subCommand == "status" {
+		if subCommand == "status" || subCommand == "stat" {
 			return Command{
 				Name:        "git status",
 				Description: "Show current Git repository configuration",
@@ -80,7 +83,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		if subCommand == "repo" || subCommand == "repository" {
+		if subCommand == "repo" || subCommand == "repository" || subCommand == "r" {
 			if len(parts) < 3 {
 				return Command{
 					Name:        "git repo",
@@ -97,7 +100,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		if subCommand == "token" {
+		if subCommand == "token" || subCommand == "t" {
 			if len(parts) < 3 {
 				return Command{}, fmt.Errorf("git token command requires a value. Usage: git token <github-api-token>")
 			}
@@ -110,7 +113,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		if subCommand == "a" {
+		if subCommand == "author" || subCommand == "a" {
 			authorNames := ""
 			if len(parts) > 2 {
 				authorNames = strings.Join(parts[2:], " ")
@@ -165,7 +168,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 		subCommand := parts[1]
 
-		if subCommand == "status" {
+		if subCommand == "status" || subCommand == "stat" {
 			return Command{
 				Name:        "jira status",
 				Description: "Show current JIRA configuration status",
@@ -198,7 +201,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 				Description: "Set JIRA API token",
 				Action:      "jira_set_token",
 			}, nil
-		case "project", "projects":
+		case "project", "projects", "p":
 			return Command{
 				Name:        fmt.Sprintf("jira project %s", value),
 				Description: "Set JIRA project key(s)",
@@ -217,7 +220,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 		subCommand := parts[1]
 
-		if subCommand == "help" && len(parts) == 3 && parts[2] == "git" {
+		if (subCommand == "help" || subCommand == "h") && len(parts) == 3 && (parts[2] == "git" || parts[2] == "g") {
 			return Command{
 				Name:        "void help git",
 				Description: "Show Git help",
@@ -225,7 +228,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		if subCommand == "sd" {
+		if subCommand == "set-date" || subCommand == "sd" {
 			if len(parts) < 3 {
 				return Command{}, fmt.Errorf("void sd command requires a date. Usage: void sd <YYYY-MM-DD>")
 			}
@@ -261,36 +264,6 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 	return cmd, nil
 }
 
-func GetGitConfigValue(commandName string) (string, string) {
-	if !strings.HasPrefix(commandName, "git ") {
-		return "", ""
-	}
-
-	parts := strings.Fields(commandName)
-	if len(parts) < 3 {
-		return "", ""
-	}
-
-	key := parts[1]
-	value := strings.Join(parts[2:], " ")
-	return key, value
-}
-
-func GetJiraConfigValue(commandName string) (string, string) {
-	if !strings.HasPrefix(commandName, "jira ") {
-		return "", ""
-	}
-
-	parts := strings.Fields(commandName)
-	if len(parts) < 3 {
-		return "", ""
-	}
-
-	key := parts[1]
-	value := strings.Join(parts[2:], " ")
-	return key, value
-}
-
 var GlobalRegistry = NewRegistry()
 
 func RegisterCommand(name, description, action string) {
@@ -315,48 +288,4 @@ func GetGitHelpText() string {
 
 func ValidateCommand(input string) (Command, error) {
 	return GlobalRegistry.ValidateCommand(input)
-}
-
-func GetAuthorNamesFromCommand(commandName string) []string {
-	if !strings.HasPrefix(commandName, "git a ") {
-		return nil
-	}
-
-	authorPart := strings.TrimPrefix(commandName, "git a ")
-	authorPart = strings.TrimSpace(authorPart)
-
-	if authorPart == "" {
-		return nil
-	}
-
-	authors := strings.Split(authorPart, ",")
-	var cleanAuthors []string
-	for _, author := range authors {
-		cleanAuthor := strings.TrimSpace(author)
-		if cleanAuthor != "" {
-			cleanAuthors = append(cleanAuthors, cleanAuthor)
-		}
-	}
-
-	return cleanAuthors
-}
-
-func GetDateFromCommand(commandName string) (time.Time, error) {
-	if !strings.HasPrefix(commandName, "void sd ") {
-		return time.Time{}, fmt.Errorf("not a void sd command")
-	}
-
-	datePart := strings.TrimPrefix(commandName, "void sd ")
-	datePart = strings.TrimSpace(datePart)
-
-	if datePart == "" {
-		return time.Time{}, fmt.Errorf("no date provided")
-	}
-
-	parsedDate, err := time.Parse("2006-01-02", datePart)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid date format: %w", err)
-	}
-
-	return parsedDate, nil
 }

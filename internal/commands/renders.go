@@ -64,7 +64,7 @@ func (r *Registry) GetHelpText() string {
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("void"),
-			sectionHeaderStyle.Render("st"),
+			sectionHeaderStyle.Render("start"),
 			descStyle.Render("Start analyzing your data (uses current date by default)"),
 		),
 	)
@@ -92,14 +92,14 @@ func (r *Registry) GetHelpText() string {
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("void"),
-			sectionHeaderStyle.Render("q"),
+			sectionHeaderStyle.Render("quit"),
 			descStyle.Render("Exit the application"),
 		),
 	)
 	help.WriteString(
 		fmt.Sprintf("  %s %s %s - %s\n",
 			commandStyle.Render("void"),
-			sectionHeaderStyle.Render("sd"),
+			sectionHeaderStyle.Render("set-date"),
 			argStyle.Render("<YYYY-MM-DD>"),
 			descStyle.Render("Set analysis date (e.g., void sd 2025-06-01)"),
 		),
@@ -213,14 +213,14 @@ func (r *Registry) GetGitHelpText() string {
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("git"),
-			sectionHeaderStyle.Render("a"),
+			sectionHeaderStyle.Render("author"),
 			descStyle.Render("Clear author filter and show all commits"),
 		),
 	)
 	help.WriteString(
 		fmt.Sprintf("  %s %s %s - %s\n",
 			commandStyle.Render("git"),
-			sectionHeaderStyle.Render("a"),
+			sectionHeaderStyle.Render("author"),
 			argStyle.Render("<name>"),
 			descStyle.Render("Filter commits by author name. Comma-separated for multiple authors."),
 		),
