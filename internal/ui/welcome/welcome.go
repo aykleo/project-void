@@ -73,6 +73,10 @@ func (m Model) View() string {
 		return helpView
 	}
 
+	if gitHelpView := m.commandHandler.RenderGitHelp(m.width, m.height); gitHelpView != "" {
+		return gitHelpView
+	}
+
 	welcomeText := "Welcome to Project Void"
 	welcomeStyled := styles.WelcomeStyle.Render(welcomeText)
 

@@ -28,6 +28,7 @@ type CommandHandler struct {
 	commandError   string
 	successMessage string
 	showingHelp    bool
+	showingGitHelp bool
 	showingCommand bool
 	enabled        bool
 }
@@ -71,6 +72,12 @@ func (h CommandHandler) Update(msg tea.Msg) (CommandHandler, tea.Cmd, *CommandRe
 			return h, nil, nil
 		}
 
+		if h.showingGitHelp {
+			h.showingGitHelp = false
+			h.commandError = ""
+			return h, nil, nil
+		}
+
 		if h.showingCommand {
 			switch msg.Type {
 			case tea.KeyEnter:
@@ -110,7 +117,7 @@ func (h CommandHandler) Update(msg tea.Msg) (CommandHandler, tea.Cmd, *CommandRe
 		}
 	}
 
-	if h.enabled && !h.showingHelp && !h.showingCommand {
+	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp {
 		var cmd tea.Cmd
 		h.textInput, cmd = h.textInput.Update(msg)
 		return h, cmd, nil
@@ -130,7 +137,7 @@ func (h CommandHandler) processCommand() (CommandHandler, tea.Cmd, *CommandResul
 	}
 
 	navigationCommands := map[string]string{
-		"start": "home",
+		"start": "statistics",
 		"reset": "welcome",
 	}
 
@@ -176,6 +183,17 @@ func (h CommandHandler) processCommand() (CommandHandler, tea.Cmd, *CommandResul
 		h.textInput.SetValue("")
 		return h, nil, &CommandResult{
 			Action:  "help",
+			Success: true,
+		}
+	}
+
+	if command.Action == "git_help" {
+		h.showingGitHelp = true
+		h.commandError = ""
+		h.successMessage = ""
+		h.textInput.SetValue("")
+		return h, nil, &CommandResult{
+			Action:  "git_help",
 			Success: true,
 		}
 	}
@@ -451,65 +469,12 @@ func (h CommandHandler) handleGitCommands(cmd commands.Command) *CommandResult {
 	return nil
 }
 
-func (h CommandHandler) RenderCommandInput(width int) string {
-	if h.showingCommand {
-		if h.commandError != "" {
-			errorText := fmt.Sprintf("Error: %s", h.commandError)
-			return fmt.Sprintf("%s\n%s\n%s",
-				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
-				h.textInput.View(),
-				lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press ' to exit command mode, esc to cancel"))
-		} else {
-			return fmt.Sprintf("%s\n%s",
-				h.textInput.View(),
-				lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press ' to exit command mode, esc to cancel"))
-		}
-	}
-
-	return ""
-}
-
-func (h CommandHandler) RenderCommandPrompt(helpText string) string {
-	if h.commandError != "" {
-		errorText := fmt.Sprintf("Error: %s\n\n", h.commandError)
-		return fmt.Sprintf("%s%s\n\n%s\n\n%s",
-			lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
-			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))
-	} else if h.successMessage != "" {
-		successText := fmt.Sprintf("%s\n\n", h.successMessage)
-		return fmt.Sprintf("%s%s\n\n%s\n\n%s",
-			lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Render(successText),
-			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))
-	} else {
-		return fmt.Sprintf("%s\n\n%s\n\n%s",
-			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))
-	}
-}
-
-func (h CommandHandler) RenderHelp(width, height int) string {
-	if h.showingHelp {
-		helpText := commands.GetHelpText()
-		helpContent := fmt.Sprintf("%s\n\nPress any key to return", helpText)
-
-		centerStyle := lipgloss.NewStyle().
-			Width(width).
-			Height(height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Padding(1, 2)
-
-		return centerStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpContent))
-	}
-	return ""
-}
-
 func (h CommandHandler) IsShowingHelp() bool {
 	return h.showingHelp
+}
+
+func (h CommandHandler) IsShowingGitHelp() bool {
+	return h.showingGitHelp
 }
 
 func (h CommandHandler) IsShowingCommand() bool {
@@ -599,7 +564,7 @@ func (h StatisticsCommandHandler) processCommand() (StatisticsCommandHandler, te
 	}
 
 	navigationCommands := map[string]string{
-		"start": "home",
+		"start": "statistics",
 		"reset": "welcome",
 	}
 
@@ -622,6 +587,13 @@ func (h StatisticsCommandHandler) processCommand() (StatisticsCommandHandler, te
 		h.CommandHandler.commandError = ""
 		h.CommandHandler.successMessage = result.Message
 		return h, nil, result
+	}
+
+	if validatedCmd.Action == "git_help" {
+		h.showingGitHelp = true
+		h.commandError = ""
+		h.successMessage = ""
+		return h, nil, nil
 	}
 
 	if validatedCmd.Action == "filter_by_author" || validatedCmd.Action == "clear_author_filter" {
@@ -656,6 +628,12 @@ func (h StatisticsCommandHandler) Update(msg tea.Msg) (StatisticsCommandHandler,
 
 		if h.showingHelp {
 			h.showingHelp = false
+			h.commandError = ""
+			return h, nil, nil
+		}
+
+		if h.showingGitHelp {
+			h.showingGitHelp = false
 			h.commandError = ""
 			return h, nil, nil
 		}
@@ -699,7 +677,7 @@ func (h StatisticsCommandHandler) Update(msg tea.Msg) (StatisticsCommandHandler,
 		}
 	}
 
-	if h.enabled && !h.showingHelp && !h.showingCommand {
+	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp {
 		var cmd tea.Cmd
 		h.textInput, cmd = h.textInput.Update(msg)
 		return h, cmd, nil

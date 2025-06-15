@@ -5,17 +5,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	styles "project-void/internal/ui/styles"
-
-	lipgloss "github.com/charmbracelet/lipgloss"
-)
-
-var (
-	sectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230"))
-	commandStyle       = lipgloss.NewStyle().Foreground(styles.HighlightColor)
-	argStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	descStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
 
 type Command struct {
@@ -68,124 +57,6 @@ func (r *Registry) GetAllCommands() []Command {
 	return commands
 }
 
-func (r *Registry) GetHelpText() string {
-	var help strings.Builder
-
-	help.WriteString(sectionHeaderStyle.Render("\nJIRA Configuration Commands:") + "\n")
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("jira status"),
-			descStyle.Render("Show current JIRA configuration"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira url"),
-			argStyle.Render("<url>"),
-			descStyle.Render("Set JIRA base URL"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira user"),
-			argStyle.Render("<username>"),
-			descStyle.Render("Set JIRA username"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira token"),
-			argStyle.Render("<token>"),
-			descStyle.Render("Set JIRA API token"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira project"),
-			argStyle.Render("<key>"),
-			descStyle.Render("Set JIRA project key. It can have multiple keys separated by commas."),
-		),
-	)
-
-	help.WriteString(sectionHeaderStyle.Render("\nGit Configuration Commands:") + "\n")
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("git status"),
-			descStyle.Render("Show current Git repository configuration"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("git repo"),
-			descStyle.Render("Clear Git repository configuration"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("git repo"),
-			argStyle.Render("<url-or-path>"),
-			descStyle.Render("Set Git repository URL or local path"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("git token"),
-			argStyle.Render("<github-token>"),
-			descStyle.Render("Set GitHub API token (increases rate limit from 60 to 5,000/hour)"),
-		),
-	)
-
-	help.WriteString(sectionHeaderStyle.Render("\nGit Analysis Commands (available if you have a repository configured):") + "\n")
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("git a"),
-			descStyle.Render("Clear author filter and show all commits"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("git a"),
-			argStyle.Render("<name>"),
-			descStyle.Render("Filter commits by author name. It can have multiple names separated by commas."),
-		),
-	)
-
-	help.WriteString(sectionHeaderStyle.Render("\nGeneral Commands:") + "\n")
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("void st"),
-			descStyle.Render("Start analyzing your data (uses current date by default)"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("void reset"),
-			descStyle.Render("Return to welcome screen"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("void help"),
-			descStyle.Render("Show this help message"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s - %s\n",
-			commandStyle.Render("void q"),
-			descStyle.Render("Exit the application"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("void sd"),
-			argStyle.Render("<YYYY-MM-DD>"),
-			descStyle.Render("Set analysis date (e.g., void sd 2025-06-01)"),
-		),
-	)
-
-	return help.String()
-}
-
 func (r *Registry) ValidateCommand(input string) (Command, error) {
 	input = strings.TrimSpace(input)
 
@@ -196,7 +67,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 	if strings.HasPrefix(input, "git ") {
 		parts := strings.Fields(input)
 		if len(parts) < 2 {
-			return Command{}, fmt.Errorf("git command requires a subcommand. Use 'help' to see available commands")
+			return Command{}, fmt.Errorf("git command requires a subcommand. Use 'void help git' to see available git commands")
 		}
 
 		subCommand := parts[1]
@@ -261,7 +132,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown git subcommand: %s\nAvailable: status, repo, token, a", subCommand)
+		return Command{}, fmt.Errorf("unknown git subcommand: %s\nAvailable: status, repo, token, a\nFor Git help, use: void help git", subCommand)
 	}
 
 	if strings.HasPrefix(input, "git a ") || input == "git a" {
@@ -346,6 +217,14 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 
 		subCommand := parts[1]
 
+		if subCommand == "help" && len(parts) == 3 && parts[2] == "git" {
+			return Command{
+				Name:        "void help git",
+				Description: "Show Git help",
+				Action:      "git_help",
+			}, nil
+		}
+
 		if subCommand == "sd" {
 			if len(parts) < 3 {
 				return Command{}, fmt.Errorf("void sd command requires a date. Usage: void sd <YYYY-MM-DD>")
@@ -369,14 +248,14 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			return cmd, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, st, reset, q, sd", subCommand)
+		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, st, reset, q, sd, help git", subCommand)
 	}
 
 	cleanName := strings.TrimPrefix(input, "./")
 
 	cmd, exists := r.commands[cleanName]
 	if !exists {
-		return Command{}, fmt.Errorf("unknown command: %s\nType 'void help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
+		return Command{}, fmt.Errorf("unknown command: %s\nType 'void help' to see available commands\nOr use 'void help git' to see Git commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
 	}
 
 	return cmd, nil
@@ -428,6 +307,10 @@ func GetAllCommands() []Command {
 
 func GetHelpText() string {
 	return GlobalRegistry.GetHelpText()
+}
+
+func GetGitHelpText() string {
+	return GlobalRegistry.GetGitHelpText()
 }
 
 func ValidateCommand(input string) (Command, error) {

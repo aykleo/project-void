@@ -673,6 +673,10 @@ func (m Model) View() string {
 		return helpView
 	}
 
+	if gitHelpView := m.commandHandler.RenderGitHelp(m.width, m.height); gitHelpView != "" {
+		return gitHelpView
+	}
+
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
