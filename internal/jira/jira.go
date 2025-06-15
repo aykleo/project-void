@@ -244,27 +244,3 @@ func (c *JiraClient) isUserMatch(nameToCheck, userEmail, userName string) bool {
 
 	return false
 }
-
-func (c *JiraClient) TestConnection() error {
-	requestURL := fmt.Sprintf("%s/rest/api/2/myself", c.BaseURL)
-
-	req, err := http.NewRequest("GET", requestURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(c.Username, c.ApiToken)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("authentication failed with status %d", resp.StatusCode)
-	}
-
-	return nil
-}

@@ -99,10 +99,6 @@ func loadJiraCmd(since time.Time) tea.Cmd {
 
 		client := jira.NewClientFromConfig(config)
 
-		if err := client.TestConnection(); err != nil {
-			return JiraLoadErrorMsg{Error: fmt.Sprintf("JIRA connection failed: %v", err)}
-		}
-
 		err = jiraTable.LoadIssues(client, since, config)
 		if err != nil {
 			return JiraLoadErrorMsg{Error: fmt.Sprintf("Failed to load JIRA issues: %v", err)}
