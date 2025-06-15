@@ -103,14 +103,7 @@ func (r *Registry) GetHelpText() string {
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("jira project"),
 			argStyle.Render("<key>"),
-			descStyle.Render("Set JIRA project key"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira project"),
-			argStyle.Render("<key1,key2>"),
-			descStyle.Render("Set multiple JIRA project keys"),
+			descStyle.Render("Set JIRA project key. It can have multiple keys separated by commas."),
 		),
 	)
 
@@ -142,7 +135,7 @@ func (r *Registry) GetHelpText() string {
 		),
 	)
 
-	help.WriteString(sectionHeaderStyle.Render("\nGit Analysis Commands (available in development mode):") + "\n")
+	help.WriteString(sectionHeaderStyle.Render("\nGit Analysis Commands (available if you have a repository configured):") + "\n")
 	help.WriteString(
 		fmt.Sprintf("  %s - %s\n",
 			commandStyle.Render("git a"),
@@ -153,14 +146,7 @@ func (r *Registry) GetHelpText() string {
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("git a"),
 			argStyle.Render("<name>"),
-			descStyle.Render("Filter commits by author name"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("git a"),
-			argStyle.Render("<name1,name2>"),
-			descStyle.Render("Filter commits by multiple author names"),
+			descStyle.Render("Filter commits by author name. It can have multiple names separated by commas."),
 		),
 	)
 
