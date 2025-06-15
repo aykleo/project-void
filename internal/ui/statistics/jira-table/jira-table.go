@@ -1,11 +1,8 @@
 package jiratable
 
 import (
-	"fmt"
 	"math/rand"
-	"project-void/internal/jira"
 	"project-void/internal/ui/styles"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -112,113 +109,10 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-
-		m.progress.Width = msg.Width - 20
-		if m.progress.Width > 80 {
-			m.progress.Width = 80
-		}
-
-		tableHeight := m.height - 4
-		if tableHeight < 6 {
-			tableHeight = 6
-		}
-		m.table.SetHeight(tableHeight)
-
-		if m.width > 0 {
-			columns := getJiraTableColumns(m.width)
-			m.table.SetColumns(columns)
-		}
-
-	case LoadIssuesProgressMsg:
-		if m.loadingState == LoadingInProgress {
-			cmd = m.progress.SetPercent(msg.Percent)
-			return m, cmd
-		}
-
-	case tickMsg:
-		if m.loadingState == LoadingInProgress {
-			currentPercent := m.progress.Percent()
-
-			if currentPercent < 0.95 {
-				maxIncrement := 0.1 * (1.0 - currentPercent)
-				increment := rand.Float64() * maxIncrement
-
-				newPercent := currentPercent + increment
-				if newPercent > 0.95 {
-					newPercent = 0.95
-				}
-
-				return m, tea.Batch(tickCmd(), m.progress.SetPercent(newPercent))
-			}
-
-			return m, tickCmd()
-		}
-
-	case LoadingCompleteMsg:
-		if m.loadingState == LoadingInProgress {
-			m.loadingState = LoadingComplete
-			return m, m.progress.SetPercent(1.0)
-		}
-
-	case progress.FrameMsg:
-		if m.loadingState == LoadingInProgress || m.progress.Percent() < 1.0 {
-			progressModel, cmd := m.progress.Update(msg)
-			m.progress = progressModel.(progress.Model)
-			return m, cmd
-		}
-	}
-	m.table, cmd = m.table.Update(msg)
-	return m, cmd
-}
-
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*200+time.Duration(rand.Intn(300))*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
-}
-
-func (m Model) View() string {
-	if m.loadingState == LoadingInProgress {
-		var loadingText string
-		if m.spinner != nil {
-			loadingText = fmt.Sprintf("%s Loading JIRA issues...", m.spinner.View())
-		} else {
-			loadingText = "Loading JIRA issues..."
-		}
-		progressView := m.progress.View()
-
-		content := lipgloss.JoinVertical(lipgloss.Center,
-			loadingText,
-			progressView,
-		)
-
-		return content
-	}
-
-	if m.loadingState == LoadingError {
-		errorText := fmt.Sprintf("Error loading JIRA issues: %s", m.loadError)
-		content := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText)
-
-		return content
-	}
-
-	tableView := baseStyle.Render(m.table.View())
-
-	if m.borderFocused {
-		tableView = focusedStyle.Render(m.table.View())
-	}
-
-	if m.width > 0 {
-		return lipgloss.NewStyle().Width(m.width).Render(tableView)
-	}
-
-	return tableView
 }
 
 func (m *Model) Focus() {
@@ -247,60 +141,6 @@ func (m *Model) SetBlurredStyle() {
 		Background(lipgloss.NoColor{})
 	m.table.SetStyles(m.styles)
 	m.borderFocused = false
-}
-
-func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config *jira.Config) error {
-	m.loadingState = LoadingInProgress
-	m.progress.SetPercent(0.0)
-
-	m.progress.SetPercent(0.2)
-	issues, err := jiraClient.GetIssuesSince(since, config)
-	if err != nil {
-		m.loadingState = LoadingError
-		m.loadError = err.Error()
-		return fmt.Errorf("failed to load issues: %w", err)
-	}
-
-	rows := make([]table.Row, len(issues))
-	for i, issue := range issues {
-		if len(issues) > 0 {
-			progress := 0.2 + (0.7 * float64(i) / float64(len(issues)))
-			m.progress.SetPercent(progress)
-		}
-
-		action := issue.UserAction
-		if len(action) > 11 {
-			action = action[:8] + "..."
-		}
-
-		status := issue.Status
-		if len(status) > 14 {
-			status = status[:11] + "..."
-		}
-
-		actionDate := issue.ActionDate.Format("2006-01-02")
-
-		summary := strings.ReplaceAll(issue.Summary, "\n", " ")
-		summary = strings.TrimSpace(summary)
-		maxSummaryLength := 80
-		if len(summary) > maxSummaryLength {
-			summary = summary[:maxSummaryLength-3] + "..."
-		}
-
-		rows[i] = table.Row{
-			issue.Key,
-			status,
-			action,
-			actionDate,
-			summary,
-		}
-	}
-
-	m.progress.SetPercent(0.9)
-	m.table.SetRows(rows)
-	m.progress.SetPercent(1.0)
-	m.loadingState = LoadingComplete
-	return nil
 }
 
 func (m Model) GetSelectedIssue() table.Row {
