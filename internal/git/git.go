@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,7 +19,14 @@ type Commit struct {
 	Timestamp time.Time
 }
 
+func ToMidnight(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
 func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
+
+	since = ToMidnight(since)
+
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
@@ -43,7 +51,7 @@ func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
 		defer commitIter.Close()
 
 		err = commitIter.ForEach(func(c *object.Commit) error {
-			if c.Author.When.After(since) {
+			if c.Author.When.UTC().After(since) {
 				hash := c.Hash.String()
 				if _, exists := uniqueCommits[hash]; !exists {
 					uniqueCommits[hash] = Commit{
@@ -72,10 +80,16 @@ func GetCommitsSince(repoPath string, since time.Time) ([]Commit, error) {
 		commits = append(commits, commit)
 	}
 
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Timestamp.After(commits[j].Timestamp)
+	})
+
 	return commits, nil
 }
 
 func GetCommitsSinceByAuthors(repoPath string, since time.Time, authorNames []string) ([]Commit, error) {
+	since = ToMidnight(since)
+
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open repository: %w", err)
@@ -105,7 +119,7 @@ func GetCommitsSinceByAuthors(repoPath string, since time.Time, authorNames []st
 		defer commitIter.Close()
 
 		err = commitIter.ForEach(func(c *object.Commit) error {
-			if c.Author.When.After(since) {
+			if c.Author.When.UTC().After(since) {
 				authorLower := strings.ToLower(c.Author.Name)
 				matchesAuthor := false
 
@@ -145,6 +159,10 @@ func GetCommitsSinceByAuthors(repoPath string, since time.Time, authorNames []st
 	for _, commit := range uniqueCommits {
 		commits = append(commits, commit)
 	}
+
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Timestamp.After(commits[j].Timestamp)
+	})
 
 	return commits, nil
 }
