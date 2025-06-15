@@ -161,6 +161,13 @@ func (m *Model) StartLoading() {
 	m.loadError = ""
 }
 
+func (m *Model) StartLoadingWithCmd() tea.Cmd {
+	m.loadingState = LoadingInProgress
+	m.progress.SetPercent(0.0)
+	m.loadError = ""
+	return tickCmd()
+}
+
 func (m *Model) UpdateProgress(percent float64) tea.Cmd {
 	if m.loadingState == LoadingInProgress {
 		return m.progress.SetPercent(percent)

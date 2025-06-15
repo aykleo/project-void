@@ -59,6 +59,20 @@ func (r *Registry) GetHelpText() string {
 			descStyle.Render("Set JIRA project key. It can have multiple keys separated by commas."),
 		),
 	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("f"),
+			descStyle.Render("Enable user filtering (show only your issues)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("nof"),
+			descStyle.Render("Disable user filtering (show all issues)"),
+		),
+	)
 
 	help.WriteString(sectionHeaderStyle.Render("\nGeneral Commands:") + "\n")
 	help.WriteString(

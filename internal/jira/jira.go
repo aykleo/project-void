@@ -3,6 +3,7 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,33 +28,6 @@ type JiraClient struct {
 	Username string
 	ApiToken string
 	Client   *http.Client
-}
-
-type JiraSearchResponse struct {
-	Issues []struct {
-		Key    string `json:"key"`
-		Fields struct {
-			Summary string `json:"summary"`
-			Status  struct {
-				Name string `json:"name"`
-			} `json:"status"`
-			Assignee struct {
-				DisplayName string `json:"displayName"`
-			} `json:"assignee"`
-			Reporter struct {
-				DisplayName string `json:"displayName"`
-			} `json:"reporter"`
-			Updated   string `json:"updated"`
-			Created   string `json:"created"`
-			IssueType struct {
-				Name string `json:"name"`
-			} `json:"issuetype"`
-			Priority struct {
-				Name string `json:"name"`
-			} `json:"priority"`
-		} `json:"fields"`
-	} `json:"issues"`
-	Total int `json:"total"`
 }
 
 func NewJiraClient(baseURL, username, apiToken string) *JiraClient {
@@ -84,90 +58,143 @@ func (c *JiraClient) GetIssuesSince(since time.Time, config *Config) ([]Issue, e
 	}
 
 	if config.FilterByUser {
-		switch config.UserFilterType {
-		case "assignee":
-			jql = fmt.Sprintf("(%s) AND assignee = currentUser()", jql)
-		case "reporter":
-			jql = fmt.Sprintf("(%s) AND reporter = currentUser()", jql)
-		case "participant":
-			jql = fmt.Sprintf("(%s) AND (assignee = currentUser() OR reporter = currentUser())", jql)
-		case "all":
-			jql = fmt.Sprintf("(%s) AND (assignee = currentUser() OR reporter = currentUser())", jql)
+		username := config.Username
+
+		var userConditions []string
+
+		if strings.Contains(username, "@") {
+			userConditions = []string{
+				fmt.Sprintf("assignee = '%s'", username),
+				fmt.Sprintf("reporter = '%s'", username),
+			}
+
+			localPart := strings.Split(username, "@")[0]
+			userConditions = append(userConditions,
+				fmt.Sprintf("assignee = '%s'", localPart),
+				fmt.Sprintf("reporter = '%s'", localPart),
+			)
+		} else {
+			userConditions = []string{
+				fmt.Sprintf("assignee = '%s'", username),
+				fmt.Sprintf("reporter = '%s'", username),
+			}
 		}
+
+		userFilter := "(" + strings.Join(userConditions, " OR ") + ")"
+		jql = fmt.Sprintf("(%s) AND %s", userFilter, jql)
 	}
 
 	jql += " ORDER BY updated DESC"
 
-	params := url.Values{}
-	params.Add("jql", jql)
-	params.Add("fields", "summary,status,assignee,reporter,updated,created,issuetype,priority")
-	params.Add("maxResults", "100")
+	allIssues := []Issue{}
+	startAt := 0
+	maxResults := 100
 
-	requestURL := fmt.Sprintf("%s/rest/api/2/search?%s", c.BaseURL, params.Encode())
+	for {
+		url := fmt.Sprintf("%s/rest/api/2/search?jql=%s&startAt=%d&maxResults=%d",
+			c.BaseURL, url.QueryEscape(jql), startAt, maxResults)
 
-	req, err := http.NewRequest("GET", requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(c.Username, c.ApiToken)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	var searchResponse JiraSearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	issues := make([]Issue, len(searchResponse.Issues))
-	for i, jiraIssue := range searchResponse.Issues {
-		updated, _ := time.Parse("2006-01-02T15:04:05.000-0700", jiraIssue.Fields.Updated)
-		created, _ := time.Parse("2006-01-02T15:04:05.000-0700", jiraIssue.Fields.Created)
-
-		assignee := "Unassigned"
-		if jiraIssue.Fields.Assignee.DisplayName != "" {
-			assignee = jiraIssue.Fields.Assignee.DisplayName
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 
-		reporter := "Unknown"
-		if jiraIssue.Fields.Reporter.DisplayName != "" {
-			reporter = jiraIssue.Fields.Reporter.DisplayName
+		req.SetBasicAuth(c.Username, c.ApiToken)
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := c.Client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 		}
 
-		userAction := c.determineUserAction(config, assignee, reporter, jiraIssue.Key)
-
-		actionDate := updated
-		if strings.Contains(userAction, "Created") {
-			actionDate = created
+		var searchResult struct {
+			Issues []struct {
+				Key    string `json:"key"`
+				Fields struct {
+					Status struct {
+						Name string `json:"name"`
+					} `json:"status"`
+					Assignee *struct {
+						DisplayName  string `json:"displayName"`
+						EmailAddress string `json:"emailAddress"`
+					} `json:"assignee"`
+					Summary   string `json:"summary"`
+					Updated   string `json:"updated"`
+					Created   string `json:"created"`
+					IssueType struct {
+						Name string `json:"name"`
+					} `json:"issuetype"`
+					Priority *struct {
+						Name string `json:"name"`
+					} `json:"priority"`
+					Reporter *struct {
+						DisplayName  string `json:"displayName"`
+						EmailAddress string `json:"emailAddress"`
+					} `json:"reporter"`
+				} `json:"fields"`
+			} `json:"issues"`
+			Total      int `json:"total"`
+			StartAt    int `json:"startAt"`
+			MaxResults int `json:"maxResults"`
 		}
 
-		issues[i] = Issue{
-			Key:        jiraIssue.Key,
-			Status:     jiraIssue.Fields.Status.Name,
-			Assignee:   assignee,
-			Summary:    jiraIssue.Fields.Summary,
-			Updated:    updated,
-			Created:    created,
-			IssueType:  jiraIssue.Fields.IssueType.Name,
-			Priority:   jiraIssue.Fields.Priority.Name,
-			UserAction: userAction,
-			ActionDate: actionDate,
+		if err := json.NewDecoder(resp.Body).Decode(&searchResult); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
+
+		for _, jiraIssue := range searchResult.Issues {
+			assignee := ""
+			if jiraIssue.Fields.Assignee != nil {
+				assignee = jiraIssue.Fields.Assignee.DisplayName
+			}
+
+			reporter := ""
+			if jiraIssue.Fields.Reporter != nil {
+				reporter = jiraIssue.Fields.Reporter.DisplayName
+			}
+
+			priority := ""
+			if jiraIssue.Fields.Priority != nil {
+				priority = jiraIssue.Fields.Priority.Name
+			}
+
+			userAction := c.determineUserAction(config, assignee, reporter)
+
+			updatedTime, _ := time.Parse("2006-01-02T15:04:05.000-0700", jiraIssue.Fields.Updated)
+			createdTime, _ := time.Parse("2006-01-02T15:04:05.000-0700", jiraIssue.Fields.Created)
+
+			issue := Issue{
+				Key:        jiraIssue.Key,
+				Status:     jiraIssue.Fields.Status.Name,
+				Assignee:   assignee,
+				Summary:    jiraIssue.Fields.Summary,
+				Updated:    updatedTime,
+				Created:    createdTime,
+				IssueType:  jiraIssue.Fields.IssueType.Name,
+				Priority:   priority,
+				UserAction: userAction,
+				ActionDate: updatedTime,
+			}
+
+			allIssues = append(allIssues, issue)
+		}
+
+		if len(searchResult.Issues) < maxResults {
+			break
+		}
+		startAt += maxResults
 	}
 
-	return issues, nil
+	return allIssues, nil
 }
 
-func (c *JiraClient) determineUserAction(config *Config, assignee, reporter, issueKey string) string {
+func (c *JiraClient) determineUserAction(config *Config, assignee, reporter string) string {
 	if !config.FilterByUser {
 		return "All Issues"
 	}
@@ -195,22 +222,7 @@ func (c *JiraClient) determineUserAction(config *Config, assignee, reporter, iss
 	}
 
 	if len(actions) == 0 {
-		switch config.UserFilterType {
-		case "assignee":
-			return "Assigned"
-		case "reporter":
-			return "Created"
-		case "participant":
-			return "Participated"
-		case "all":
-			return "Involved"
-		default:
-			return "Related"
-		}
-	}
-
-	if len(actions) == 1 {
-		return actions[0]
+		return "Participated"
 	}
 
 	return strings.Join(actions, ", ")

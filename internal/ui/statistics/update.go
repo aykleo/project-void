@@ -277,9 +277,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 
 						m.jiraLoading = true
-						m.jiraTable.StartLoading()
+						jiraTickCmd := m.jiraTable.StartLoadingWithCmd()
 						jiraLoadCmd := loadJiraCmd(m.selectedDate)
-						cmds = append(cmds, jiraLoadCmd, m.jiraSpinner.Tick)
+						cmds = append(cmds, jiraTickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
 
 						m.slackLoading = true
 						m.slackTable.StartLoading()
@@ -287,6 +287,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						cmds = append(cmds, slackLoadCmd, m.slackSpinner.Tick)
 
 						return m, tea.Batch(cmds...)
+					}
+					return m, cmd
+				}
+
+				if result.Action == "jira_filter_on" || result.Action == "jira_filter_off" {
+					if result.Success {
+
+						m.jiraLoading = true
+						tickCmd := m.jiraTable.StartLoadingWithCmd()
+						jiraLoadCmd := loadJiraCmd(m.selectedDate)
+						return m, tea.Batch(tickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
 					}
 					return m, cmd
 				}

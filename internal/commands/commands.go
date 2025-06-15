@@ -220,6 +220,22 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
+		if subCommand == "f" || subCommand == "filter" {
+			return Command{
+				Name:        "jira f",
+				Description: "Enable user filtering (show only your issues)",
+				Action:      "jira_filter_on",
+			}, nil
+		}
+
+		if subCommand == "nof" || subCommand == "nofilter" {
+			return Command{
+				Name:        "jira nof",
+				Description: "Disable user filtering (show all issues)",
+				Action:      "jira_filter_off",
+			}, nil
+		}
+
 		if len(parts) < 3 {
 			return Command{}, fmt.Errorf("jira %s command requires a value. Usage: jira %s <value>", subCommand, subCommand)
 		}
@@ -252,7 +268,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 				Action:      "jira_set_project",
 			}, nil
 		default:
-			return Command{}, fmt.Errorf("unknown jira subcommand: %s\nAvailable: url, user, token, project, status", subCommand)
+			return Command{}, fmt.Errorf("unknown jira subcommand: %s\nAvailable: url, user, token, project, status, f, nof", subCommand)
 		}
 	}
 

@@ -123,6 +123,36 @@ func (h CommandHandler) handleJiraCommands(cmd commands.Command) *CommandResult 
 			Success: true,
 			Message: fmt.Sprintf("✓ JIRA project key(s) set to: %s", value),
 		}
+
+	case "jira_filter_on":
+		err := config.SetJiraConfig("filter", "true")
+		if err != nil {
+			return &CommandResult{
+				Action:  "jira_filter_on",
+				Success: false,
+				Message: fmt.Sprintf("Failed to enable user filtering: %v", err),
+			}
+		}
+		return &CommandResult{
+			Action:  "jira_filter_on",
+			Success: true,
+			Message: "✓ User filtering enabled - showing only your issues",
+		}
+
+	case "jira_filter_off":
+		err := config.SetJiraConfig("filter", "false")
+		if err != nil {
+			return &CommandResult{
+				Action:  "jira_filter_off",
+				Success: false,
+				Message: fmt.Sprintf("Failed to disable user filtering: %v", err),
+			}
+		}
+		return &CommandResult{
+			Action:  "jira_filter_off",
+			Success: true,
+			Message: "✓ User filtering disabled - showing all issues",
+		}
 	}
 
 	return nil

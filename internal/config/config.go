@@ -47,7 +47,7 @@ func LoadUserConfig() (*UserConfig, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return &UserConfig{
 			Jira: JiraConfig{
-				FilterByUser:   false,
+				FilterByUser:   true,
 				UserFilterType: "participant",
 			},
 			Git: GitConfig{
@@ -115,6 +115,19 @@ func SetJiraConfig(key, value string) error {
 			}
 			config.Jira.ProjectKeys = cleanKeys
 		}
+	case "filter", "filter_by_user", "filterbyuser":
+		config.Jira.FilterByUser = strings.ToLower(value) == "true"
+	case "filter_type", "user_filter_type", "userfiltertype":
+		validTypes := map[string]bool{
+			"assignee":    true,
+			"reporter":    true,
+			"participant": true,
+			"all":         true,
+		}
+		if !validTypes[value] {
+			return fmt.Errorf("invalid user filter type: %s. Valid options are: assignee, reporter, participant, all", value)
+		}
+		config.Jira.UserFilterType = value
 	default:
 		return fmt.Errorf("unknown JIRA config key: %s", key)
 	}
@@ -158,6 +171,9 @@ func GetJiraConfigStatus() (string, error) {
 	} else {
 		status.WriteString("  Projects: (not set)\n")
 	}
+
+	status.WriteString(fmt.Sprintf("  Filter by User: %t\n", config.Jira.FilterByUser))
+	status.WriteString(fmt.Sprintf("  User Filter Type: %s\n", config.Jira.UserFilterType))
 
 	if config.Jira.BaseURL != "" && config.Jira.Username != "" && config.Jira.ApiToken != "" {
 		status.WriteString("\n✓ Configuration is complete and ready to use!")
