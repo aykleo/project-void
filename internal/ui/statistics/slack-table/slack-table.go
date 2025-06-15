@@ -53,21 +53,31 @@ type tickMsg time.Time
 
 type LoadingCompleteMsg struct{}
 
-func InitialModel() Model {
-	columns := []table.Column{
-		{Title: "From (not yet implemented)", Width: 28},
-		{Title: "To", Width: 16},
-		{Title: "Time", Width: 10},
-		{Title: "Message", Width: 35},
+func getSlackTableColumns(width int) []table.Column {
+	fromWidth := 28
+	toWidth := 16
+	timeWidth := 10
+	numColumns := 4
+	messageWidth := width - fromWidth - toWidth - timeWidth - 10 - (numColumns - 1)
+	if messageWidth < 20 {
+		messageWidth = 20
 	}
+	return []table.Column{
+		{Title: "From (not yet implemented)", Width: fromWidth},
+		{Title: "To", Width: toWidth},
+		{Title: "Time", Width: timeWidth},
+		{Title: "Message", Width: messageWidth},
+	}
+}
 
+func InitialModel() Model {
+	columns := getSlackTableColumns(94)
 	rows := []table.Row{}
-
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithHeight(1),
+		table.WithHeight(2),
 	)
 
 	s := table.DefaultStyles()
@@ -112,25 +122,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		tableHeight := m.height - 4
-		if tableHeight < 1 {
-			tableHeight = 1
+		if tableHeight < 2 {
+			tableHeight = 2
 		}
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-			fromWidth := 28
-			toWidth := 16
-			timeWidth := 10
-			messageWidth := m.width - fromWidth - toWidth - timeWidth - 12
-			if messageWidth < 20 {
-				messageWidth = 20
-			}
-			columns := []table.Column{
-				{Title: "From (not yet implemented)", Width: fromWidth},
-				{Title: "To", Width: toWidth},
-				{Title: "Time", Width: timeWidth},
-				{Title: "Message", Width: messageWidth},
-			}
+			columns := getSlackTableColumns(m.width)
 			m.table.SetColumns(columns)
 		}
 

@@ -54,19 +54,30 @@ type tickMsg time.Time
 
 type LoadingCompleteMsg struct{}
 
-func InitialModel() Model {
-	columns := []table.Column{
-		{Title: "Branch", Width: 12},
-		{Title: "Author", Width: 20},
-		{Title: "Date", Width: 12},
-		{Title: "Message", Width: 50},
+func getCommitTableColumns(width int) []table.Column {
+	branchWidth := 12
+	authorWidth := 20
+	dateWidth := 12
+	numColumns := 4
+	messageWidth := width - branchWidth - authorWidth - dateWidth - 10 - (numColumns - 1)
+	if messageWidth < 20 {
+		messageWidth = 20
 	}
+	return []table.Column{
+		{Title: "Branch", Width: branchWidth},
+		{Title: "Author", Width: authorWidth},
+		{Title: "Date", Width: dateWidth},
+		{Title: "Message", Width: messageWidth},
+	}
+}
 
+func InitialModel() Model {
+	columns := getCommitTableColumns(94)
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows([]table.Row{}),
 		table.WithFocused(true),
-		table.WithHeight(8),
+		table.WithHeight(6),
 	)
 
 	s := table.DefaultStyles()
@@ -112,26 +123,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		tableHeight := m.height - 4
-		if tableHeight < 8 {
-			tableHeight = 8
+		if tableHeight < 6 {
+			tableHeight = 6
 		}
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-			branchWidth := 12
-			authorWidth := 20
-			dateWidth := 12
-			messageWidth := m.width - branchWidth - authorWidth - dateWidth - 10
-			if messageWidth < 20 {
-				messageWidth = 20
-			}
-
-			columns := []table.Column{
-				{Title: "Branch", Width: branchWidth},
-				{Title: "Author", Width: authorWidth},
-				{Title: "Date", Width: dateWidth},
-				{Title: "Message", Width: messageWidth},
-			}
+			columns := getCommitTableColumns(m.width)
 			m.table.SetColumns(columns)
 		}
 

@@ -53,20 +53,32 @@ type tickMsg time.Time
 
 type LoadingCompleteMsg struct{}
 
-func InitialModel() Model {
-	columns := []table.Column{
-		{Title: "Issue", Width: 12},
-		{Title: "Status", Width: 15},
-		{Title: "Action", Width: 12},
-		{Title: "Date", Width: 10},
-		{Title: "Summary", Width: 40},
+func getJiraTableColumns(width int) []table.Column {
+	issueWidth := 12
+	statusWidth := 15
+	actionWidth := 12
+	dateWidth := 10
+	numColumns := 5
+	summaryWidth := width - issueWidth - statusWidth - actionWidth - dateWidth - 10 - (numColumns - 1)
+	if summaryWidth < 20 {
+		summaryWidth = 20
 	}
+	return []table.Column{
+		{Title: "Issue", Width: issueWidth},
+		{Title: "Status", Width: statusWidth},
+		{Title: "Action", Width: actionWidth},
+		{Title: "Date", Width: dateWidth},
+		{Title: "Summary", Width: summaryWidth},
+	}
+}
 
+func InitialModel() Model {
+	columns := getJiraTableColumns(94)
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows([]table.Row{}),
 		table.WithFocused(true),
-		table.WithHeight(8),
+		table.WithHeight(6),
 	)
 
 	s := table.DefaultStyles()
@@ -111,44 +123,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		tableHeight := m.height - 4
-		if tableHeight < 8 {
-			tableHeight = 8
+		if tableHeight < 6 {
+			tableHeight = 6
 		}
 		m.table.SetHeight(tableHeight)
 
 		if m.width > 0 {
-
-			issueWidth := 12
-			statusWidth := 15
-			actionWidth := 12
-			dateWidth := 10
-
-			usedWidth := issueWidth + statusWidth + actionWidth + dateWidth + 10
-			summaryWidth := m.width - usedWidth
-
-			if summaryWidth < 20 {
-				summaryWidth = 20
-			}
-			if issueWidth < 8 {
-				issueWidth = 8
-			}
-			if statusWidth < 10 {
-				statusWidth = 10
-			}
-			if actionWidth < 8 {
-				actionWidth = 8
-			}
-			if dateWidth < 8 {
-				dateWidth = 8
-			}
-
-			columns := []table.Column{
-				{Title: "Issue", Width: issueWidth},
-				{Title: "Status", Width: statusWidth},
-				{Title: "Action", Width: actionWidth},
-				{Title: "Date", Width: dateWidth},
-				{Title: "Summary", Width: summaryWidth},
-			}
+			columns := getJiraTableColumns(m.width)
 			m.table.SetColumns(columns)
 		}
 
