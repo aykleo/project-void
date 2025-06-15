@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
@@ -100,12 +101,15 @@ func (m Model) View() string {
 	if m.err != nil {
 		s.WriteString(m.filepicker.Styles.DisabledFile.Render(m.err.Error()))
 	} else if m.selectedFolder == "" {
-		s.WriteString("Pick a folder:")
+		s.WriteString("Pick a folder\n")
 		s.WriteString("\n  Current: " + m.filepicker.Styles.Directory.Render(m.filepicker.CurrentDirectory))
-		s.WriteString("\n  Navigate with ← → arrows, Enter/Space to select current folder")
+		navigationHelp := "← →: navigate • enter: select folder • space: select current folder"
+		s.WriteString("\n\n  " + lipgloss.NewStyle().Align(lipgloss.Center).Foreground(lipgloss.Color("8")).Render(navigationHelp))
+
 	} else {
 		s.WriteString("Selected folder: " + m.filepicker.Styles.Selected.Render(m.selectedFolder))
 	}
+
 	s.WriteString("\n\n" + m.filepicker.View() + "\n")
 	return s.String()
 }

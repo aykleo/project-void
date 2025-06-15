@@ -279,17 +279,17 @@ func (m Model) View() string {
 	}
 
 	if m.selectedDate == nil {
-		datePickerPrompt := "Please select a date to continue: ← → for days, ↑ ↓ for months, Enter/Space to select"
-		prompt := styles.NeutralStyle.Width(contentWidth).Render(datePickerPrompt)
+		datePickerPrompt := "← →: navigate days, ↑ ↓: navigate weeks, enter/space: select date"
+		prompt := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Align(lipgloss.Center).MarginBottom(2).Width(contentWidth).Render(datePickerPrompt)
 
 		currentDate := m.datePicker.GetSelectedDate()
 		initialDateMessage := fmt.Sprint(currentDate.Format("January 2, 2006"))
 		dateInfo := styles.WelcomeStyle.Width(contentWidth).Render(initialDateMessage)
 
 		if m.isDev {
-			content = folderInfo + "\n\n" + prompt + "\n" + dateInfo
+			content = folderInfo + "\n" + dateInfo + "\n" + prompt
 		} else {
-			content = prompt + "\n" + dateInfo
+			content = dateInfo + "\n" + prompt
 		}
 		return styles.DocStyle.Width(m.width).Height(m.height).Align(lipgloss.Center, lipgloss.Center).Render(content)
 	}

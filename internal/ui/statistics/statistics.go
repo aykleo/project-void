@@ -609,8 +609,8 @@ func (m Model) View() string {
 	if commandInput := m.commandHandler.RenderCommandInput(contentWidth); commandInput != "" {
 		commandHeader = commandInput
 	} else {
-		navHelp := "Use w/s to navigate tables, c for commands, esc to go back"
-		commandHeader = styles.QuitStyle.Render(navHelp)
+		navHelp := "w/s: navigate tables • c: commands • esc: exit"
+		commandHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
 	}
 
 	commandHeaderCentered := lipgloss.NewStyle().
@@ -692,7 +692,7 @@ func (m Model) View() string {
 		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled + "\n\n" + slackViewStyled
 	}
 
-	fullContent := commandHeaderCentered + "\n" + mainContent
+	fullContent := mainContent + "\n" + commandHeaderCentered
 
 	centerStyle := lipgloss.NewStyle().
 		Width(m.width).
