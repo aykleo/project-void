@@ -30,6 +30,7 @@ type Model struct {
 	command            string
 	submitted          bool
 	authorFilter       []string
+	branchFilter       []string
 	commitsSpinner     spinner.Model
 	jiraSpinner        spinner.Model
 	slackSpinner       spinner.Model

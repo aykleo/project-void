@@ -225,6 +225,14 @@ func (r *Registry) GetGitHelpText() string {
 			descStyle.Render("Filter commits by author name. Comma-separated for multiple authors."),
 		),
 	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("git"),
+			sectionHeaderStyle.Render("branch"),
+			argStyle.Render("<name>"),
+			descStyle.Render("Filter commits by branch name. Comma-separated for multiple branches."),
+		),
+	)
 
 	return help.String()
 }

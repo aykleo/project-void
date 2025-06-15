@@ -49,6 +49,44 @@ func loadCommitsByAuthorsCmd(repoSource string, since time.Time, authorNames []s
 	})
 }
 
+func loadCommitsByBranchesCmd(repoSource string, since time.Time, branchNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if repoSource == "" {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByBranches(repoSource, since, branchNames)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
+func loadCommitsByAuthorsAndBranchesCmd(repoSource string, since time.Time, authorNames []string, branchNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if repoSource == "" {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByAuthorsAndBranches(repoSource, since, authorNames, branchNames)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
 func loadJiraCmd(since time.Time) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
 		var jiraTable jiratable.Model = jiratable.InitialModel()

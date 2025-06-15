@@ -135,7 +135,29 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown git subcommand: %s\nAvailable: status, repo, token, a\nFor Git help, use: void help git", subCommand)
+		if subCommand == "branch" || subCommand == "b" {
+			branchNames := ""
+			if len(parts) > 2 {
+				branchNames = strings.Join(parts[2:], " ")
+				branchNames = strings.TrimSpace(branchNames)
+			}
+
+			if branchNames == "" {
+				return Command{
+					Name:        "git b",
+					Description: "Clear branch filter and show all commits",
+					Action:      "clear_branch_filter",
+				}, nil
+			}
+
+			return Command{
+				Name:        "git b " + branchNames,
+				Description: "Filter commits by branch name(s)",
+				Action:      "filter_by_branch",
+			}, nil
+		}
+
+		return Command{}, fmt.Errorf("unknown git subcommand: %s\nAvailable: status, repo, token, author, branch\nFor Git help, use: void help git", subCommand)
 	}
 
 	if strings.HasPrefix(input, "git a ") || input == "git a" {
@@ -157,6 +179,28 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			Name:        "git a " + authorNames,
 			Description: "Filter commits by author name(s)",
 			Action:      "filter_by_author",
+		}, nil
+	}
+
+	if strings.HasPrefix(input, "git b ") || input == "git b" {
+		branchNames := ""
+		if strings.HasPrefix(input, "git b ") {
+			branchNames = strings.TrimPrefix(input, "git b ")
+			branchNames = strings.TrimSpace(branchNames)
+		}
+
+		if branchNames == "" {
+			return Command{
+				Name:        "git b",
+				Description: "Clear branch filter and show all commits",
+				Action:      "clear_branch_filter",
+			}, nil
+		}
+
+		return Command{
+			Name:        "git b " + branchNames,
+			Description: "Filter commits by branch name(s)",
+			Action:      "filter_by_branch",
 		}, nil
 	}
 
@@ -251,7 +295,7 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			return cmd, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, st, reset, q, sd, help git", subCommand)
+		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, start, reset, quit, set-date, help git", subCommand)
 	}
 
 	cleanName := strings.TrimPrefix(input, "./")

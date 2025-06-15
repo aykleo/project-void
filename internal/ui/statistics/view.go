@@ -39,6 +39,15 @@ func (m Model) View() string {
 			commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
 		}
 
+		if len(m.branchFilter) > 0 {
+			branchFilterText := strings.Join(m.branchFilter, ", ")
+			if len(m.authorFilter) > 0 {
+				commitsHeader += fmt.Sprintf(" and branches: %s", branchFilterText)
+			} else {
+				commitsHeader += fmt.Sprintf(" (filtered by branches: %s)", branchFilterText)
+			}
+		}
+
 		header := styles.WelcomeStyle.Render(commitsHeader)
 
 		var commitsText string

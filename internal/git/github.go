@@ -147,6 +147,86 @@ func (g *GitHubProvider) GetCommitsSinceByAuthors(repoURL string, since time.Tim
 	return filtered, nil
 }
 
+func (g *GitHubProvider) GetCommitsSinceByBranches(repoURL string, since time.Time, branchNames []string) ([]Commit, error) {
+	commits, err := g.GetCommitsSince(repoURL, since)
+	if err != nil {
+		return nil, err
+	}
+
+	var lowerBranchNames []string
+	for _, name := range branchNames {
+		lowerBranchNames = append(lowerBranchNames, strings.ToLower(name))
+	}
+
+	var filtered []Commit
+	for _, commit := range commits {
+		branchLower := strings.ToLower(commit.Branch)
+		matchesBranch := false
+
+		for _, targetBranch := range lowerBranchNames {
+			if branchLower == targetBranch {
+				matchesBranch = true
+				break
+			}
+		}
+
+		if matchesBranch {
+			filtered = append(filtered, commit)
+		}
+	}
+
+	return filtered, nil
+}
+
+func (g *GitHubProvider) GetCommitsSinceByAuthorsAndBranches(repoURL string, since time.Time, authorNames []string, branchNames []string) ([]Commit, error) {
+	commits, err := g.GetCommitsSince(repoURL, since)
+	if err != nil {
+		return nil, err
+	}
+
+	var lowerAuthorNames []string
+	for _, name := range authorNames {
+		lowerAuthorNames = append(lowerAuthorNames, strings.ToLower(name))
+	}
+
+	var lowerBranchNames []string
+	for _, name := range branchNames {
+		lowerBranchNames = append(lowerBranchNames, strings.ToLower(name))
+	}
+
+	var filtered []Commit
+	for _, commit := range commits {
+
+		branchLower := strings.ToLower(commit.Branch)
+		matchesBranch := false
+		for _, targetBranch := range lowerBranchNames {
+			if branchLower == targetBranch {
+				matchesBranch = true
+				break
+			}
+		}
+
+		if !matchesBranch {
+			continue
+		}
+
+		authorLower := strings.ToLower(commit.Author)
+		matchesAuthor := false
+		for _, targetAuthor := range lowerAuthorNames {
+			if strings.Contains(authorLower, targetAuthor) || strings.Contains(targetAuthor, authorLower) {
+				matchesAuthor = true
+				break
+			}
+		}
+
+		if matchesAuthor {
+			filtered = append(filtered, commit)
+		}
+	}
+
+	return filtered, nil
+}
+
 func (g *GitHubProvider) getBranches(owner, repo string) ([]GitHubBranch, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/branches", owner, repo)
 

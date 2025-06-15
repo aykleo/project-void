@@ -143,7 +143,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.authorFilter = authorNames
 							m.commitsLoading = true
-							loadCmd := loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, authorNames)
+
+							var loadCmd tea.Cmd
+							if len(m.branchFilter) > 0 {
+
+								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, authorNames, m.branchFilter)
+							} else {
+
+								loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, authorNames)
+							}
 							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 						} else {
 							m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
@@ -157,7 +165,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.authorFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+
+						var loadCmd tea.Cmd
+						if len(m.branchFilter) > 0 {
+
+							loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, m.branchFilter)
+						} else {
+
+							loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+						}
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					} else {
 						m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
@@ -165,9 +181,60 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
+				if result.Action == "filter_by_branch" && result.Data != nil {
+					if commandData, ok := result.Data["command"].(commands.Command); ok {
+						branchNames := commands.GetBranchNamesFromCommand(commandData.Name)
+						if len(branchNames) == 0 {
+							m.commandHandler.SetError("Invalid branch names in command")
+							return m, cmd
+						}
+
+						if m.isDev && m.selectedRepoSource != "" {
+							tickCmd := m.commitsTable.StartLoadingWithCmd()
+							m.branchFilter = branchNames
+							m.commitsLoading = true
+
+							var loadCmd tea.Cmd
+							if len(m.authorFilter) > 0 {
+
+								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter, branchNames)
+							} else {
+
+								loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, branchNames)
+							}
+							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
+						} else {
+							m.commandHandler.SetError("Branch filtering only available in development mode with a repository selected")
+							return m, cmd
+						}
+					}
+				}
+
+				if result.Action == "clear_branch_filter" {
+					if m.isDev && m.selectedRepoSource != "" {
+						m.branchFilter = nil
+						m.commitsLoading = true
+						tickCmd := m.commitsTable.StartLoadingWithCmd()
+
+						var loadCmd tea.Cmd
+						if len(m.authorFilter) > 0 {
+
+							loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
+						} else {
+
+							loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+						}
+						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
+					} else {
+						m.commandHandler.SetError("Branch filtering only available in development mode with a repository selected")
+						return m, cmd
+					}
+				}
+
 				if result.Action == "start" || result.Action == "reset" {
-					if m.isDev && m.selectedRepoSource != "" && len(m.authorFilter) > 0 {
+					if m.isDev && m.selectedRepoSource != "" && (len(m.authorFilter) > 0 || len(m.branchFilter) > 0) {
 						m.authorFilter = nil
+						m.branchFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 						loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
@@ -192,13 +259,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							cmds = append(cmds, tickCmd, m.commitsSpinner.Tick)
 
-							if len(m.authorFilter) > 0 {
-								loadCmd := loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
-								cmds = append(cmds, loadCmd)
+							var loadCmd tea.Cmd
+							if len(m.authorFilter) > 0 && len(m.branchFilter) > 0 {
+
+								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter, m.branchFilter)
+							} else if len(m.authorFilter) > 0 {
+
+								loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
+							} else if len(m.branchFilter) > 0 {
+
+								loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, m.branchFilter)
 							} else {
-								loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
-								cmds = append(cmds, loadCmd)
+
+								loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
 							}
+							cmds = append(cmds, loadCmd)
 						}
 
 						m.jiraLoading = true
@@ -224,6 +299,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.isDev = m.selectedRepoSource != ""
 
 							m.authorFilter = nil
+							m.branchFilter = nil
 
 							if m.isDev && m.selectedRepoSource != "" {
 								m.commitsLoading = true

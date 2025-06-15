@@ -95,7 +95,7 @@ func (h StatisticsCommandHandler) processCommand() (StatisticsCommandHandler, te
 		return h, nil, nil
 	}
 
-	if validatedCmd.Action == "filter_by_author" || validatedCmd.Action == "clear_author_filter" {
+	if validatedCmd.Action == "filter_by_author" || validatedCmd.Action == "clear_author_filter" || validatedCmd.Action == "filter_by_branch" || validatedCmd.Action == "clear_branch_filter" {
 		return h, nil, &CommandResult{
 			Action:  validatedCmd.Action,
 			Success: true,
