@@ -2,6 +2,7 @@ package welcome
 
 import (
 	"fmt"
+	"project-void/internal/config"
 	"project-void/internal/ui/common"
 	"project-void/internal/ui/styles"
 	"time"
@@ -21,7 +22,7 @@ type Model struct {
 
 func InitialModel() Model {
 	return Model{
-		commandHandler: common.NewCommandHandler("Enter a command (e.g., start, git repo <url>, help)..."),
+		commandHandler: common.NewCommandHandler("Enter a command (e.g., git repo <url>, void help)..."),
 		submitted:      false,
 		selectedDate:   nil,
 	}
@@ -75,18 +76,33 @@ func (m Model) View() string {
 	welcomeText := "Welcome to Project Void"
 	welcomeStyled := styles.WelcomeStyle.Render(welcomeText)
 
-	description := "Configure your Git repository and start analyzing your productivity data"
-	descriptionStyled := styles.NeutralStyle.Render(description)
+	var gitDescription string
+	var jiraDescription string
+	currentDate := time.Now().Format("2006-01-02")
+	if userConfig, err := config.LoadUserConfig(); err == nil && userConfig.Git.RepoURL != "" {
+		gitDescription = fmt.Sprintf("Current repo: %s", lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(userConfig.Git.RepoURL))
+	} else {
+		gitDescription = "If you are a developer, you can use git status to check your repository configuration."
+	}
+
+	if userConfig, err := config.LoadUserConfig(); err == nil && userConfig.Jira.Username != "" {
+		jiraDescription = fmt.Sprintf("Current JIRA username: %s", lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(userConfig.Jira.Username))
+	} else {
+		jiraDescription = "If you are a JIRA user, you can use jira status to check your JIRA configuration."
+	}
+	gitDescriptionStyled := styles.NeutralStyle.Render(gitDescription)
+	jiraDescriptionStyled := styles.NeutralStyle.Render(jiraDescription)
+	dateDescriptionStyled := styles.NeutralStyle.Render(fmt.Sprintf("Today is: %s", lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(currentDate)))
 
 	var inputSection string
 	if m.submitted {
 		inputSection = styles.NeutralStyle.Render(fmt.Sprintf("Command processed: %s\n\nNavigating...", m.command))
 	} else {
-		helpText := "Use 'git repo <url>' to configure a repository, 'void sd <date>' to set analysis date, or 'start' to begin"
+		helpText := "Use 'git repo <url>' to configure a repository, 'void sd <date>' to set analysis date, or 'void st' to begin"
 		inputSection = m.commandHandler.RenderCommandPrompt(helpText)
 	}
 
-	content := fmt.Sprintf("%s\n\n%s\n\n%s", welcomeStyled, descriptionStyled, inputSection)
+	content := fmt.Sprintf("%s\n\n%s\n%s\n%s\n\n%s", welcomeStyled, gitDescriptionStyled, jiraDescriptionStyled, dateDescriptionStyled, inputSection)
 
 	centerStyle := lipgloss.NewStyle().
 		Width(m.width).
