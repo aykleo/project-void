@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"project-void/internal/commands"
 	"project-void/internal/config"
+	"project-void/internal/ui/styles"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,6 +36,7 @@ func NewCommandHandler(placeholder string) CommandHandler {
 	ti.Focus()
 	ti.CharLimit = 256
 	ti.Width = 50
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(styles.HighlightColor)
 
 	return CommandHandler{
 		textInput: ti,
@@ -294,12 +296,12 @@ func (h CommandHandler) RenderCommandInput(width int) string {
 	if h.showingCommand {
 		if h.commandError != "" {
 			errorText := fmt.Sprintf("Error: %s", h.commandError)
-			return fmt.Sprintf("%s\nCommand: %s\n%s",
+			return fmt.Sprintf("%s\n%s\n%s",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
 				h.textInput.View(),
 				lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press ' to exit command mode, esc to cancel"))
 		} else {
-			return fmt.Sprintf("Command: %s\n%s",
+			return fmt.Sprintf("%s\n%s",
 				h.textInput.View(),
 				lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press ' to exit command mode, esc to cancel"))
 		}
@@ -311,20 +313,20 @@ func (h CommandHandler) RenderCommandInput(width int) string {
 func (h CommandHandler) RenderCommandPrompt(helpText string) string {
 	if h.commandError != "" {
 		errorText := fmt.Sprintf("Error: %s\n\n", h.commandError)
-		return fmt.Sprintf("%sCommand: %s\n\n%s\n\n%s",
+		return fmt.Sprintf("%s%s\n\n%s\n\n%s",
 			lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
 			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))
 	} else if h.successMessage != "" {
 		successText := fmt.Sprintf("%s\n\n", h.successMessage)
-		return fmt.Sprintf("%sCommand: %s\n\n%s\n\n%s",
+		return fmt.Sprintf("%s%s\n\n%s\n\n%s",
 			lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Render(successText),
 			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))
 	} else {
-		return fmt.Sprintf("Command: %s\n\n%s\n\n%s",
+		return fmt.Sprintf("%s\n\n%s\n\n%s",
 			lipgloss.NewStyle().Align(lipgloss.Center).Render(h.textInput.View()),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(helpText),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Press c for commands, Ctrl+C or Esc to quit"))

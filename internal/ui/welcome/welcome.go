@@ -19,7 +19,7 @@ type Model struct {
 
 func InitialModel() Model {
 	return Model{
-		commandHandler: common.NewCommandHandler("Enter a command (e.g., help)..."),
+		commandHandler: common.NewCommandHandler("Enter a command (e.g., start, help)..."),
 		submitted:      false,
 	}
 }

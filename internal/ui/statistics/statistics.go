@@ -61,7 +61,7 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		commitsTable:   commitsTable,
 		jiraTable:      jiraTable,
 		slackTable:     slackTable,
-		commandHandler: common.NewCommandHandler("Enter a command (e.g., help)..."),
+		commandHandler: common.NewCommandHandler("Enter a command (e.g., git a, help)..."),
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
