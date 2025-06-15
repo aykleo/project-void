@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"project-void/internal/config"
 	"strings"
 	"time"
 )
@@ -18,43 +19,65 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
-	config := &Config{
-		BaseURL:        os.Getenv("JIRA_BASE_URL"),
-		Username:       os.Getenv("JIRA_USERNAME"),
-		ApiToken:       os.Getenv("JIRA_API_TOKEN"),
-		FilterByUser:   false,
-		UserFilterType: "participant",
+
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user config: %w", err)
 	}
 
-	if config.BaseURL == "" {
-		return nil, fmt.Errorf("JIRA_BASE_URL is required")
-	}
-	if config.Username == "" {
-		return nil, fmt.Errorf("JIRA_USERNAME is required")
-	}
-	if config.ApiToken == "" {
-		return nil, fmt.Errorf("JIRA_API_TOKEN is required")
+	jiraConfig := &Config{
+		BaseURL:        userConfig.Jira.BaseURL,
+		Username:       userConfig.Jira.Username,
+		ApiToken:       userConfig.Jira.ApiToken,
+		ProjectKeys:    userConfig.Jira.ProjectKeys,
+		FilterByUser:   userConfig.Jira.FilterByUser,
+		UserFilterType: userConfig.Jira.UserFilterType,
 	}
 
-	projectKeysStr := os.Getenv("JIRA_PROJECT_KEY")
-	if projectKeysStr != "" {
-		keys := strings.Split(projectKeysStr, ",")
-		config.ProjectKeys = make([]string, len(keys))
-		for i, key := range keys {
-			config.ProjectKeys[i] = strings.TrimSpace(key)
+	if jiraConfig.BaseURL == "" {
+		jiraConfig.BaseURL = os.Getenv("JIRA_BASE_URL")
+	}
+	if jiraConfig.Username == "" {
+		jiraConfig.Username = os.Getenv("JIRA_USERNAME")
+	}
+	if jiraConfig.ApiToken == "" {
+		jiraConfig.ApiToken = os.Getenv("JIRA_API_TOKEN")
+	}
+	if len(jiraConfig.ProjectKeys) == 0 {
+		projectKeysStr := os.Getenv("JIRA_PROJECT_KEY")
+		if projectKeysStr != "" {
+			keys := strings.Split(projectKeysStr, ",")
+			jiraConfig.ProjectKeys = make([]string, len(keys))
+			for i, key := range keys {
+				jiraConfig.ProjectKeys[i] = strings.TrimSpace(key)
+			}
 		}
 	}
 
 	filterByUserStr := os.Getenv("JIRA_FILTER_BY_USER")
 	if filterByUserStr != "" {
-		config.FilterByUser = strings.ToLower(filterByUserStr) == "true"
+		jiraConfig.FilterByUser = strings.ToLower(filterByUserStr) == "true"
 	}
 
-	if config.FilterByUser {
+	if jiraConfig.FilterByUser {
 		userFilterType := os.Getenv("JIRA_USER_FILTER_TYPE")
 		if userFilterType != "" {
-			config.UserFilterType = userFilterType
+			jiraConfig.UserFilterType = userFilterType
 		}
+	}
+
+	if jiraConfig.UserFilterType == "" {
+		jiraConfig.UserFilterType = "participant"
+	}
+
+	if jiraConfig.BaseURL == "" {
+		return nil, fmt.Errorf("JIRA_BASE_URL is required (set with: jira url <your-jira-url>)")
+	}
+	if jiraConfig.Username == "" {
+		return nil, fmt.Errorf("JIRA_USERNAME is required (set with: jira user <your-username>)")
+	}
+	if jiraConfig.ApiToken == "" {
+		return nil, fmt.Errorf("JIRA_API_TOKEN is required (set with: jira token <your-token>)")
 	}
 
 	validFilterTypes := map[string]bool{
@@ -64,11 +87,11 @@ func LoadConfig() (*Config, error) {
 		"all":         true,
 	}
 
-	if !validFilterTypes[config.UserFilterType] {
-		return nil, fmt.Errorf("invalid user filter type: %s. Valid options are: assignee, reporter, participant, all", config.UserFilterType)
+	if !validFilterTypes[jiraConfig.UserFilterType] {
+		return nil, fmt.Errorf("invalid user filter type: %s. Valid options are: assignee, reporter, participant, all", jiraConfig.UserFilterType)
 	}
 
-	return config, nil
+	return jiraConfig, nil
 }
 
 func NewClientFromConfig(config *Config) *JiraClient {

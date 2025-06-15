@@ -68,6 +68,18 @@ func (r *Registry) GetHelpText() string {
 		help.WriteString(fmt.Sprintf("  %s - %s\n", cmd.Name, cmd.Description))
 	}
 
+	help.WriteString("\nJIRA Configuration Commands:\n")
+	help.WriteString("  jira status - Show current JIRA configuration\n")
+	help.WriteString("  jira url <url> - Set JIRA base URL\n")
+	help.WriteString("  jira user <username> - Set JIRA username\n")
+	help.WriteString("  jira token <token> - Set JIRA API token\n")
+	help.WriteString("  jira project <key> - Set JIRA project key\n")
+	help.WriteString("  jira project <key1,key2> - Set multiple JIRA project keys\n")
+	help.WriteString("  Examples:\n")
+	help.WriteString("    jira url https://mycompany.atlassian.net\n")
+	help.WriteString("    jira user john.doe@company.com\n")
+	help.WriteString("    jira project PROJ1,PROJ2\n")
+
 	help.WriteString("\nGit Commands (available in development mode):\n")
 	help.WriteString("  git a - Clear author filter and show all commits\n")
 	help.WriteString("  git a <name> - Filter commits by author name\n")
@@ -109,14 +121,81 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 		}, nil
 	}
 
+	if strings.HasPrefix(input, "jira ") {
+		parts := strings.Fields(input)
+		if len(parts) < 2 {
+			return Command{}, fmt.Errorf("jira command requires a subcommand. Use 'help' to see available commands")
+		}
+
+		subCommand := parts[1]
+
+		if subCommand == "status" {
+			return Command{
+				Name:        "jira status",
+				Description: "Show current JIRA configuration status",
+				Action:      "jira_status",
+			}, nil
+		}
+
+		if len(parts) < 3 {
+			return Command{}, fmt.Errorf("jira %s command requires a value. Usage: jira %s <value>", subCommand, subCommand)
+		}
+
+		value := strings.Join(parts[2:], " ")
+
+		switch subCommand {
+		case "url":
+			return Command{
+				Name:        fmt.Sprintf("jira url %s", value),
+				Description: "Set JIRA base URL",
+				Action:      "jira_set_url",
+			}, nil
+		case "user", "username":
+			return Command{
+				Name:        fmt.Sprintf("jira user %s", value),
+				Description: "Set JIRA username",
+				Action:      "jira_set_user",
+			}, nil
+		case "token":
+			return Command{
+				Name:        fmt.Sprintf("jira token %s", value),
+				Description: "Set JIRA API token",
+				Action:      "jira_set_token",
+			}, nil
+		case "project", "projects":
+			return Command{
+				Name:        fmt.Sprintf("jira project %s", value),
+				Description: "Set JIRA project key(s)",
+				Action:      "jira_set_project",
+			}, nil
+		default:
+			return Command{}, fmt.Errorf("unknown jira subcommand: %s\nAvailable: url, user, token, project, status", subCommand)
+		}
+	}
+
 	cleanName := strings.TrimPrefix(input, "./")
 
 	cmd, exists := r.commands[cleanName]
 	if !exists {
-		return Command{}, fmt.Errorf("unknown command: %s\nType 'help' to see available commands\nOr use 'git a <name>' to filter commits by author", cleanName)
+		return Command{}, fmt.Errorf("unknown command: %s\nType 'help' to see available commands\nOr use 'git a <name>' to filter commits by author\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
 	}
 
 	return cmd, nil
+}
+
+func GetJiraConfigValue(commandName string) (string, string) {
+	if !strings.HasPrefix(commandName, "jira ") {
+		return "", ""
+	}
+
+	parts := strings.Fields(commandName)
+	if len(parts) < 3 {
+		return "", ""
+	}
+
+	key := parts[1]
+	value := strings.Join(parts[2:], " ")
+	return key, value
 }
 
 var GlobalRegistry = NewRegistry()
