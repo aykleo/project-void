@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -43,6 +44,7 @@ type Model struct {
 	loadingState  LoadingState
 	progress      progress.Model
 	loadError     string
+	spinner       *spinner.Model
 }
 
 type LoadIssuesProgressMsg struct {
@@ -183,7 +185,12 @@ func tickCmd() tea.Cmd {
 
 func (m Model) View() string {
 	if m.loadingState == LoadingInProgress {
-		loadingText := "Loading JIRA issues..."
+		var loadingText string
+		if m.spinner != nil {
+			loadingText = fmt.Sprintf("%s Loading JIRA issues...", m.spinner.View())
+		} else {
+			loadingText = "Loading JIRA issues..."
+		}
 		progressView := m.progress.View()
 
 		content := lipgloss.JoinVertical(lipgloss.Center,
@@ -319,4 +326,8 @@ func (m *Model) UpdateProgress(percent float64) tea.Cmd {
 		return m.progress.SetPercent(percent)
 	}
 	return nil
+}
+
+func (m *Model) SetSpinner(s *spinner.Model) {
+	m.spinner = s
 }

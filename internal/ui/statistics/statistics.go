@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -32,6 +33,12 @@ type Model struct {
 	command        string
 	submitted      bool
 	authorFilter   []string
+	commitsSpinner spinner.Model
+	jiraSpinner    spinner.Model
+	slackSpinner   spinner.Model
+	commitsLoading bool
+	jiraLoading    bool
+	slackLoading   bool
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
@@ -42,6 +49,20 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	commitsTable.StartLoading()
 	jiraTable.StartLoading()
 	slackTable.StartLoading()
+
+	spinnerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+
+	commitsSpinner := spinner.New()
+	commitsSpinner.Style = spinnerStyle
+	commitsSpinner.Spinner = spinner.Dot
+
+	jiraSpinner := spinner.New()
+	jiraSpinner.Style = spinnerStyle
+	jiraSpinner.Spinner = spinner.Dot
+
+	slackSpinner := spinner.New()
+	slackSpinner.Style = spinnerStyle
+	slackSpinner.Spinner = spinner.Dot
 
 	if isDev {
 		commitsTable.Focus()
@@ -57,6 +78,10 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		slackTable.SetBlurredStyle()
 	}
 
+	commitsTable.SetSpinner(&commitsSpinner)
+	jiraTable.SetSpinner(&jiraSpinner)
+	slackTable.SetSpinner(&slackSpinner)
+
 	return Model{
 		commitsTable:   commitsTable,
 		jiraTable:      jiraTable,
@@ -66,6 +91,12 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		selectedDate:   selectedDate,
 		isDev:          isDev,
 		focusedTable:   0,
+		commitsSpinner: commitsSpinner,
+		jiraSpinner:    jiraSpinner,
+		slackSpinner:   slackSpinner,
+		commitsLoading: true,
+		jiraLoading:    true,
+		slackLoading:   true,
 	}
 }
 
@@ -146,6 +177,9 @@ func (m Model) Init() tea.Cmd {
 		m.jiraTable.Init(),
 		m.slackTable.Init(),
 		m.commandHandler.Init(),
+		m.commitsSpinner.Tick,
+		m.jiraSpinner.Tick,
+		m.slackSpinner.Tick,
 		loadCommitsCmd(m.selectedFolder, m.selectedDate),
 		loadJiraCmd(m.selectedDate),
 		loadSlackCmd(),
@@ -275,14 +309,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.String()
 
-		// Handle command mode activation first
 		if key == "c" && !m.commandHandler.IsShowingCommand() && !m.commandHandler.IsShowingHelp() {
 			updatedHandler, cmd, _ := m.commandHandler.Update(msg)
 			m.commandHandler = updatedHandler
 			return m, cmd
 		}
 
-		// If we're in command mode or showing help, let command handler handle it
 		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() {
 			updatedHandler, cmd, result := m.commandHandler.Update(msg)
 			m.commandHandler = updatedHandler
@@ -298,7 +330,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, cmd
 				}
 
-				// Handle Git author filtering commands
 				if result.Action == "filter_by_author" && result.Data != nil {
 					if commandData, ok := result.Data["command"].(commands.Command); ok {
 						authorNames := commands.GetAuthorNamesFromCommand(commandData.Name)
@@ -310,8 +341,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if m.isDev && m.selectedFolder != "" {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.authorFilter = authorNames
+							m.commitsLoading = true
 							loadCmd := loadCommitsByAuthorsCmd(m.selectedFolder, m.selectedDate, authorNames)
-							return m, tea.Batch(tickCmd, loadCmd)
+							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 						} else {
 							m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
 							return m, cmd
@@ -322,25 +354,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if result.Action == "clear_author_filter" {
 					if m.isDev && m.selectedFolder != "" {
 						m.authorFilter = nil
+						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
-						return m, tea.Batch(tickCmd, loadCmd)
+						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					} else {
 						m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
 						return m, cmd
 					}
 				}
 
-				// Handle navigation commands
 				if result.Action == "start" || result.Action == "reset" {
-					// Check if we need to clear author filter first
 					if m.isDev && m.selectedFolder != "" && len(m.authorFilter) > 0 {
 						m.authorFilter = nil
+						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
 						m.command = result.Action
 						m.submitted = true
-						return m, tea.Batch(tickCmd, loadCmd)
+						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					}
 					m.command = result.Action
 					m.submitted = true
@@ -405,7 +437,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle row navigation keys
 		rowKeys := map[string]bool{"up": true, "down": true, "k": true, "j": true, "pgup": true, "pgdown": true, "home": true, "end": true}
 		if rowKeys[key] {
 			if m.isDev {
@@ -435,12 +466,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Handle ESC and Ctrl+C for quit
 		if key == "ctrl+c" || key == "esc" {
 			return m, tea.Quit
 		}
 
-		// Update all tables with any remaining keys
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
 		updatedSlack, cmd3 := m.slackTable.Update(msg)
@@ -461,6 +490,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case LoadedMsg:
 		m.loaded = true
+		m.commitsLoading = false
 		m.commitsTable = msg.CommitsTable
 		updatedCommits, cmd := m.commitsTable.Update(commitstable.LoadingCompleteMsg{})
 		m.commitsTable = updatedCommits.(commitstable.Model)
@@ -484,6 +514,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case JiraLoadedMsg:
+		m.jiraLoading = false
 		m.jiraTable = msg.JiraTable
 		updatedJira, cmd := m.jiraTable.Update(jiratable.LoadingCompleteMsg{})
 		m.jiraTable = updatedJira.(jiratable.Model)
@@ -505,6 +536,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case SlackLoadedMsg:
+		m.slackLoading = false
 		m.slackTable = msg.SlackTable
 		updatedSlack, cmd := m.slackTable.Update(slacktable.LoadingCompleteMsg{})
 		m.slackTable = updatedSlack.(slacktable.Model)
@@ -524,6 +556,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SlackLoadErrorMsg:
 		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		if m.commitsLoading {
+			m.commitsSpinner, cmd = m.commitsSpinner.Update(msg)
+			m.commitsTable.SetSpinner(&m.commitsSpinner)
+			cmds = append(cmds, cmd)
+		}
+		if m.jiraLoading {
+			m.jiraSpinner, cmd = m.jiraSpinner.Update(msg)
+			m.jiraTable.SetSpinner(&m.jiraSpinner)
+			cmds = append(cmds, cmd)
+		}
+		if m.slackLoading {
+			m.slackSpinner, cmd = m.slackSpinner.Update(msg)
+			m.slackTable.SetSpinner(&m.slackSpinner)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 
 	default:
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
@@ -547,7 +598,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	// Show help if active
 	if helpView := m.commandHandler.RenderHelp(m.width, m.height); helpView != "" {
 		return helpView
 	}
@@ -579,10 +629,30 @@ func (m Model) View() string {
 
 		header := styles.WelcomeStyle.Width(contentWidth).Render(commitsHeader)
 
-		totalCommits := m.commitsTable.TotalCommits()
-		totalIssues := m.jiraTable.TotalIssues()
+		var commitsText string
+		if m.commitsLoading {
+			commitsText = fmt.Sprintf("%s commits", m.commitsSpinner.View())
+		} else {
+			totalCommits := m.commitsTable.TotalCommits()
+			commitsText = fmt.Sprintf("%d commits", totalCommits)
+		}
 
-		dateInfo := fmt.Sprintf("%d commits, %d JIRA issues, %d Slack messages (coming soon) since %s", totalCommits, totalIssues, 0, m.selectedDate.Format("January 2, 2006"))
+		var jiraText string
+		if m.jiraLoading {
+			jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
+		} else {
+			totalIssues := m.jiraTable.TotalIssues()
+			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
+		}
+
+		var slackText string
+		if m.slackLoading {
+			slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
+		} else {
+			slackText = "0 Slack messages (coming soon)"
+		}
+
+		dateInfo := fmt.Sprintf("%s, %s, %s since %s", commitsText, jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		tableView := m.commitsTable.View()
@@ -595,9 +665,22 @@ func (m Model) View() string {
 
 		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered + "\n\n" + slackViewCentered
 	} else {
+		var jiraText string
+		if m.jiraLoading {
+			jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
+		} else {
+			totalIssues := m.jiraTable.TotalIssues()
+			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
+		}
 
-		totalIssues := m.jiraTable.TotalIssues()
-		dateInfo := fmt.Sprintf("%d JIRA issues, %d Slack messages (coming soon) since %s", totalIssues, 0, m.selectedDate.Format("January 2, 2006"))
+		var slackText string
+		if m.slackLoading {
+			slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
+		} else {
+			slackText = "0 Slack messages (coming soon)"
+		}
+
+		dateInfo := fmt.Sprintf("%s, %s since %s", jiraText, slackText, m.selectedDate.Format("January 2, 2006"))
 		dateInfoRendered := styles.NeutralStyle.Width(contentWidth).Render(dateInfo)
 
 		jiraView := m.jiraTable.View()
