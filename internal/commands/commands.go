@@ -24,7 +24,7 @@ func NewRegistry() *Registry {
 	registry.RegisterCommand("help", "Show all available commands", "help")
 	registry.RegisterCommand("start", "Go to the home page to start working", "start")
 	registry.RegisterCommand("reset", "Go back to the welcome screen", "reset")
-	registry.RegisterCommand("dev", "Activate development mode to select a local git repository", "dev")
+	registry.RegisterCommand("dev", "Activate development mode to select a local git repository and see commits", "dev")
 	registry.RegisterCommand("nodev", "Continue without development mode", "nodev")
 	registry.RegisterCommand("quit", "Exit the application", "quit")
 	registry.RegisterCommand("exit", "Exit the application", "quit")

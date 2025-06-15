@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"project-void/internal/commands"
 	"project-void/internal/jira"
+	"project-void/internal/ui/common"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
 	slacktable "project-void/internal/ui/statistics/slack-table"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -20,7 +20,7 @@ type Model struct {
 	commitsTable   commitstable.Model
 	jiraTable      jiratable.Model
 	slackTable     slacktable.Model
-	textInput      textinput.Model
+	commandHandler common.CommandHandler
 	selectedFolder string
 	selectedDate   time.Time
 	isDev          bool
@@ -29,9 +29,6 @@ type Model struct {
 	loaded         bool
 	loadError      string
 	focusedTable   int
-	commandError   string
-	showingHelp    bool
-	showingCommand bool
 	command        string
 	submitted      bool
 	authorFilter   []string
@@ -45,12 +42,6 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	commitsTable.StartLoading()
 	jiraTable.StartLoading()
 	slackTable.StartLoading()
-
-	ti := textinput.New()
-	ti.Placeholder = "Enter a command (e.g., help)..."
-	ti.Focus()
-	ti.CharLimit = 256
-	ti.Width = 50
 
 	if isDev {
 		commitsTable.Focus()
@@ -70,12 +61,11 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		commitsTable:   commitsTable,
 		jiraTable:      jiraTable,
 		slackTable:     slackTable,
-		textInput:      ti,
+		commandHandler: common.NewCommandHandler("Enter a command (e.g., help)..."),
 		selectedFolder: selectedFolder,
 		selectedDate:   selectedDate,
 		isDev:          isDev,
 		focusedTable:   0,
-		showingCommand: false,
 	}
 }
 
@@ -155,7 +145,7 @@ func (m Model) Init() tea.Cmd {
 		m.commitsTable.Init(),
 		m.jiraTable.Init(),
 		m.slackTable.Init(),
-		textinput.Blink,
+		m.commandHandler.Init(),
 		loadCommitsCmd(m.selectedFolder, m.selectedDate),
 		loadJiraCmd(m.selectedDate),
 		loadSlackCmd(),
@@ -193,12 +183,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
-		if msg.Width > 60 {
-			m.textInput.Width = 50
-		} else {
-			m.textInput.Width = msg.Width - 10
-		}
 
 		horizontalPadding := 4
 		contentWidth := msg.Width - (horizontalPadding * 2)
@@ -289,117 +273,82 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
-		if m.showingHelp {
-			m.showingHelp = false
-			m.commandError = ""
-			return m, nil
+		key := msg.String()
+
+		// Handle command mode activation first
+		if key == "c" && !m.commandHandler.IsShowingCommand() && !m.commandHandler.IsShowingHelp() {
+			updatedHandler, cmd, _ := m.commandHandler.Update(msg)
+			m.commandHandler = updatedHandler
+			return m, cmd
 		}
 
-		if m.showingCommand {
-			switch msg.Type {
-			case tea.KeyEnter:
-				inputValue := m.textInput.Value()
-				validatedCmd, err := commands.ValidateCommand(inputValue)
-				if err != nil {
-					m.commandError = err.Error()
-					m.textInput.SetValue("")
-					return m, nil
-				}
+		// If we're in command mode or showing help, let command handler handle it
+		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() {
+			updatedHandler, cmd, result := m.commandHandler.Update(msg)
+			m.commandHandler = updatedHandler
 
-				if validatedCmd.Action == "help" {
-					m.showingHelp = true
-					m.commandError = ""
-					m.textInput.SetValue("")
-					return m, nil
-				}
-
-				if validatedCmd.Action == "quit" {
+			if result != nil {
+				if result.ShouldQuit {
 					return m, tea.Quit
 				}
 
-				if validatedCmd.Action == "start" || validatedCmd.Action == "reset" {
+				if result.ShouldNavigate {
+					m.command = result.Action
+					m.submitted = true
+					return m, cmd
+				}
+
+				// Handle Git author filtering commands
+				if result.Action == "filter_by_author" && result.Data != nil {
+					if commandData, ok := result.Data["command"].(commands.Command); ok {
+						authorNames := commands.GetAuthorNamesFromCommand(commandData.Name)
+						if len(authorNames) == 0 {
+							m.commandHandler.SetError("Invalid author names in command")
+							return m, cmd
+						}
+
+						if m.isDev && m.selectedFolder != "" {
+							tickCmd := m.commitsTable.StartLoadingWithCmd()
+							m.authorFilter = authorNames
+							loadCmd := loadCommitsByAuthorsCmd(m.selectedFolder, m.selectedDate, authorNames)
+							return m, tea.Batch(tickCmd, loadCmd)
+						} else {
+							m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
+							return m, cmd
+						}
+					}
+				}
+
+				if result.Action == "clear_author_filter" {
+					if m.isDev && m.selectedFolder != "" {
+						m.authorFilter = nil
+						tickCmd := m.commitsTable.StartLoadingWithCmd()
+						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
+						return m, tea.Batch(tickCmd, loadCmd)
+					} else {
+						m.commandHandler.SetError("Author filtering only available in development mode with a repository selected")
+						return m, cmd
+					}
+				}
+
+				// Handle navigation commands
+				if result.Action == "start" || result.Action == "reset" {
+					// Check if we need to clear author filter first
 					if m.isDev && m.selectedFolder != "" && len(m.authorFilter) > 0 {
 						m.authorFilter = nil
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
-						m.commandError = ""
-						m.textInput.SetValue("")
-						m.showingCommand = false
+						m.command = result.Action
+						m.submitted = true
 						return m, tea.Batch(tickCmd, loadCmd)
 					}
-					m.command = validatedCmd.Action
+					m.command = result.Action
 					m.submitted = true
-					m.commandError = ""
-					return m, nil
+					return m, cmd
 				}
-
-				if validatedCmd.Action == "filter_by_author" {
-					authorNames := commands.GetAuthorNamesFromCommand(validatedCmd.Name)
-					if len(authorNames) == 0 {
-						m.commandError = "Invalid author names in command"
-						m.textInput.SetValue("")
-						return m, nil
-					}
-
-					if m.isDev && m.selectedFolder != "" {
-						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						m.authorFilter = authorNames
-						loadCmd := loadCommitsByAuthorsCmd(m.selectedFolder, m.selectedDate, authorNames)
-						m.commandError = ""
-						m.textInput.SetValue("")
-						m.showingCommand = false
-						return m, tea.Batch(tickCmd, loadCmd)
-					} else {
-						m.commandError = "Author filtering only available in development mode with a repository selected"
-						m.textInput.SetValue("")
-						return m, nil
-					}
-				}
-
-				if validatedCmd.Action == "clear_author_filter" {
-					if m.isDev && m.selectedFolder != "" {
-						m.authorFilter = nil
-						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						loadCmd := loadCommitsCmd(m.selectedFolder, m.selectedDate)
-						m.commandError = ""
-						m.textInput.SetValue("")
-						m.showingCommand = false
-						return m, tea.Batch(tickCmd, loadCmd)
-					} else {
-						m.commandError = "Author filtering only available in development mode with a repository selected"
-						m.textInput.SetValue("")
-						return m, nil
-					}
-				}
-
-				m.commandError = fmt.Sprintf("Unknown command action: %s", validatedCmd.Action)
-				m.textInput.SetValue("")
-				return m, nil
-			case tea.KeyCtrlC, tea.KeyEsc:
-				if msg.Type == tea.KeyEsc {
-					return m, nil
-				}
-				return m, tea.Quit
 			}
 
-			if msg.String() == "'" {
-				m.showingCommand = false
-				m.commandError = ""
-				m.textInput.SetValue("")
-				return m, nil
-			}
-
-			var cmd tea.Cmd
-			m.textInput, cmd = m.textInput.Update(msg)
 			return m, cmd
-		}
-
-		key := msg.String()
-
-		if key == "c" {
-			m.showingCommand = true
-			m.textInput.Focus()
-			return m, nil
 		}
 
 		if key == "w" || key == "s" {
@@ -456,6 +405,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle row navigation keys
 		rowKeys := map[string]bool{"up": true, "down": true, "k": true, "j": true, "pgup": true, "pgdown": true, "home": true, "end": true}
 		if rowKeys[key] {
 			if m.isDev {
@@ -485,6 +435,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Handle ESC and Ctrl+C for quit
+		if key == "ctrl+c" || key == "esc" {
+			return m, tea.Quit
+		}
+
+		// Update all tables with any remaining keys
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
 		updatedSlack, cmd3 := m.slackTable.Update(msg)
@@ -591,35 +547,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.showingHelp {
-		helpText := commands.GetHelpText()
-		helpContent := fmt.Sprintf("%s\n\nPress any key to return to statistics", helpText)
-
-		centerStyle := lipgloss.NewStyle().
-			Width(m.width).
-			Height(m.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Padding(1, 2)
-
-		return centerStyle.Render(styles.NeutralStyle.Render(helpContent))
+	// Show help if active
+	if helpView := m.commandHandler.RenderHelp(m.width, m.height); helpView != "" {
+		return helpView
 	}
 
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
 	var commandHeader string
-	if m.showingCommand {
-		if m.commandError != "" {
-			errorText := fmt.Sprintf("Error: %s", m.commandError)
-			commandHeader = fmt.Sprintf("%s\nCommand: %s\n%s",
-				lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText),
-				m.textInput.View(),
-				styles.QuitStyle.Render("Press ' to exit command mode, esc to go back to start"))
-		} else {
-			commandHeader = fmt.Sprintf("Command: %s\n%s",
-				m.textInput.View(),
-				styles.QuitStyle.Render("Press ' to exit command mode, esc to go back to start"))
-		}
+	if commandInput := m.commandHandler.RenderCommandInput(contentWidth); commandInput != "" {
+		commandHeader = commandInput
 	} else {
 		navHelp := "Use w/s to navigate tables, c for commands, esc to go back"
 		commandHeader = styles.QuitStyle.Render(navHelp)
@@ -693,6 +631,5 @@ func (m Model) HasCommand() bool {
 func (m *Model) ResetCommand() {
 	m.submitted = false
 	m.command = ""
-	m.commandError = ""
-	m.textInput.SetValue("")
+	m.commandHandler.ClearMessages()
 }
