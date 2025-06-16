@@ -245,7 +245,7 @@ func getCommitsSinceByBranchesLocal(repoPath string, since time.Time, branchName
 		branchLower := strings.ToLower(ref.Name().Short())
 		matchesBranch := false
 		for _, targetBranch := range lowerBranchNames {
-			if branchLower == targetBranch {
+			if strings.Contains(branchLower, targetBranch) {
 				matchesBranch = true
 				break
 			}
@@ -331,7 +331,7 @@ func getCommitsSinceByAuthorsAndBranchesLocal(repoPath string, since time.Time, 
 		branchLower := strings.ToLower(ref.Name().Short())
 		matchesBranch := false
 		for _, targetBranch := range lowerBranchNames {
-			if branchLower == targetBranch {
+			if strings.Contains(branchLower, targetBranch) {
 				matchesBranch = true
 				break
 			}
