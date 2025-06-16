@@ -21,13 +21,14 @@ type CommandResult struct {
 }
 
 type CommandHandler struct {
-	textInput      textinput.Model
-	commandError   string
-	successMessage string
-	showingHelp    bool
-	showingGitHelp bool
-	showingCommand bool
-	enabled        bool
+	textInput       textinput.Model
+	commandError    string
+	successMessage  string
+	showingHelp     bool
+	showingGitHelp  bool
+	showingJiraHelp bool
+	showingCommand  bool
+	enabled         bool
 }
 
 func NewCommandHandler(placeholder string) CommandHandler {
@@ -120,6 +121,17 @@ func (h CommandHandler) processCommand() (CommandHandler, tea.Cmd, *CommandResul
 		}
 	}
 
+	if command.Action == "jira_help" {
+		h.showingJiraHelp = true
+		h.commandError = ""
+		h.successMessage = ""
+		h.textInput.SetValue("")
+		return h, nil, &CommandResult{
+			Action:  "jira_help",
+			Success: true,
+		}
+	}
+
 	if command.Action == "quit" {
 		h.textInput.SetValue("")
 		return h, tea.Quit, &CommandResult{
@@ -166,6 +178,10 @@ func (h CommandHandler) IsShowingHelp() bool {
 
 func (h CommandHandler) IsShowingGitHelp() bool {
 	return h.showingGitHelp
+}
+
+func (h CommandHandler) IsShowingJiraHelp() bool {
+	return h.showingJiraHelp
 }
 
 func (h CommandHandler) IsShowingCommand() bool {

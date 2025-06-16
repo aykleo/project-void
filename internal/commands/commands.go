@@ -288,6 +288,14 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			}, nil
 		}
 
+		if (subCommand == "help" || subCommand == "h") && len(parts) == 3 && (parts[2] == "jira" || parts[2] == "j") {
+			return Command{
+				Name:        "void help jira",
+				Description: "Show JIRA help",
+				Action:      "jira_help",
+			}, nil
+		}
+
 		if subCommand == "set-date" || subCommand == "sd" {
 			if len(parts) < 3 {
 				return Command{}, fmt.Errorf("void sd command requires a date. Usage: void sd <YYYY-MM-DD>")
@@ -311,14 +319,14 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 			return cmd, nil
 		}
 
-		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, start, reset, quit, set-date, help git", subCommand)
+		return Command{}, fmt.Errorf("unknown void subcommand: %s\nAvailable: help, start, reset, quit, set-date, help git, help jira", subCommand)
 	}
 
 	cleanName := strings.TrimPrefix(input, "./")
 
 	cmd, exists := r.commands[cleanName]
 	if !exists {
-		return Command{}, fmt.Errorf("unknown command: %s\nType 'void help' to see available commands\nOr use 'void help git' to see Git commands\nOr use 'git a <name>' to filter commits by author\nOr use 'git repo <url>' to set repository\nOr use 'jira <setting> <value>' to configure JIRA", cleanName)
+		return Command{}, fmt.Errorf("unknown command: %s\nType 'void help' to see available commands\nOr use 'void help git' to see Git commands\nOr use 'void help jira' to see JIRA commands", cleanName)
 	}
 
 	return cmd, nil
@@ -344,6 +352,10 @@ func GetHelpText() string {
 
 func GetGitHelpText() string {
 	return GlobalRegistry.GetGitHelpText()
+}
+
+func GetJiraHelpText() string {
+	return GlobalRegistry.GetJiraHelpText()
 }
 
 func ValidateCommand(input string) (Command, error) {

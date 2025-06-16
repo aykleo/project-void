@@ -18,6 +18,10 @@ func (m Model) View() string {
 		return gitHelpView
 	}
 
+	if jiraHelpView := m.commandHandler.RenderJiraHelp(m.width, m.height); jiraHelpView != "" {
+		return jiraHelpView
+	}
+
 	welcomeText := "Welcome to Project Void"
 	welcomeStyled := styles.WelcomeStyle.Render(welcomeText)
 

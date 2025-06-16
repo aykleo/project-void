@@ -110,13 +110,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.String()
 
-		if key == "c" && !m.commandHandler.IsShowingCommand() && !m.commandHandler.IsShowingHelp() {
+		if key == "c" && !m.commandHandler.IsShowingCommand() && !m.commandHandler.IsShowingHelp() && !m.commandHandler.IsShowingGitHelp() && !m.commandHandler.IsShowingJiraHelp() {
 			updatedHandler, cmd, _ := m.commandHandler.Update(msg)
 			m.commandHandler = updatedHandler
 			return m, cmd
 		}
 
-		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() || m.commandHandler.IsShowingGitHelp() {
+		if m.commandHandler.IsShowingCommand() || m.commandHandler.IsShowingHelp() || m.commandHandler.IsShowingGitHelp() || m.commandHandler.IsShowingJiraHelp() {
 			updatedHandler, cmd, result := m.commandHandler.Update(msg)
 			m.commandHandler = updatedHandler
 

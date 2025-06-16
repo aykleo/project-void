@@ -19,61 +19,6 @@ var (
 func (r *Registry) GetHelpText() string {
 	var help strings.Builder
 
-	help.WriteString(sectionHeaderStyle.Render("\nJIRA Configuration Commands:") + "\n")
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("status"),
-			descStyle.Render("Show current JIRA configuration"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("url"),
-			argStyle.Render("<url>"),
-			descStyle.Render("Set JIRA base URL"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("user"),
-			argStyle.Render("<username>"),
-			descStyle.Render("Set JIRA username"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("token"),
-			argStyle.Render("<token>"),
-			descStyle.Render("Set JIRA API token"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("project"),
-			argStyle.Render("<key>"),
-			descStyle.Render("Set JIRA project key. It can have multiple keys separated by commas."),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("f"),
-			descStyle.Render("Enable user filtering (show only your issues)"),
-		),
-	)
-	help.WriteString(
-		fmt.Sprintf("  %s %s - %s\n",
-			commandStyle.Render("jira"),
-			sectionHeaderStyle.Render("nof"),
-			descStyle.Render("Disable user filtering (show all issues)"),
-		),
-	)
-
 	help.WriteString(sectionHeaderStyle.Render("\nGeneral Commands:") + "\n")
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
@@ -101,6 +46,13 @@ func (r *Registry) GetHelpText() string {
 			commandStyle.Render("void"),
 			sectionHeaderStyle.Render("help git"),
 			descStyle.Render("Show Git help and setup instructions"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("void"),
+			sectionHeaderStyle.Render("help jira"),
+			descStyle.Render("Show JIRA help and setup instructions"),
 		),
 	)
 	help.WriteString(
@@ -245,6 +197,119 @@ func (r *Registry) GetGitHelpText() string {
 			sectionHeaderStyle.Render("branch"),
 			argStyle.Render("<name>"),
 			descStyle.Render("Filter commits by branch name. Comma-separated for multiple branches."),
+		),
+	)
+
+	return help.String()
+}
+
+func (r *Registry) GetJiraHelpText() string {
+	var help strings.Builder
+
+	help.WriteString(sectionHeaderStyle.Render("\nJIRA Configuration Commands:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("status"),
+			descStyle.Render("Show current JIRA configuration and status"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("url"),
+			argStyle.Render("<url>"),
+			descStyle.Render("Set JIRA base URL (e.g., https://your-domain.atlassian.net)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("user"),
+			argStyle.Render("<username>"),
+			descStyle.Render("Set JIRA username (usually your email address)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("token"),
+			argStyle.Render("<token>"),
+			descStyle.Render("Set JIRA API token (see setup instructions below)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("project"),
+			argStyle.Render("<key>"),
+			descStyle.Render("Set JIRA project key(s). Comma-separated for multiple projects (e.g., TIP,SP)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("f"),
+			descStyle.Render("Enable user filtering (show only your issues)"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("jira"),
+			sectionHeaderStyle.Render("nof"),
+			descStyle.Render("Disable user filtering (show all issues)"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nJIRA API Token Setup:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			descStyle.Render("1. Visit"),
+			descStyle.Render("https://id.atlassian.com/manage-profile/security/api-tokens"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			descStyle.Render("2. Click"),
+			descStyle.Render("Create API token"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			descStyle.Render("3. Set note"),
+			descStyle.Render("Project Void"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			descStyle.Render("4. Copy and save"),
+			descStyle.Render("Token will only be shown once"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			descStyle.Render("5. Set in app"),
+			descStyle.Render("Use: jira token <your-token>"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nProject Keys:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s - %s\n",
+			argStyle.Render("<key>"),
+			descStyle.Render("Project key (e.g., TIP). For multiple, separate with commas: TIP,SP"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nTroubleshooting:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s\n",
+			descStyle.Render("If you see incomplete configuration, set all required fields: url, user, token, and at least one project key."),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s\n",
+			descStyle.Render("You can check your current configuration with: jira status"),
 		),
 	)
 

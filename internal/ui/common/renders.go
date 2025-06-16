@@ -80,3 +80,19 @@ func (h CommandHandler) RenderGitHelp(width, height int) string {
 	}
 	return ""
 }
+
+func (h CommandHandler) RenderJiraHelp(width, height int) string {
+	if h.showingJiraHelp {
+		jiraHelpText := commands.GetJiraHelpText()
+		jiraHelpContent := fmt.Sprintf("%s\n\nPress any key to return", jiraHelpText)
+
+		centerStyle := lipgloss.NewStyle().
+			Width(width).
+			Height(height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Padding(1, 2)
+
+		return centerStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(jiraHelpContent))
+	}
+	return ""
+}

@@ -31,6 +31,12 @@ func (h CommandHandler) Update(msg tea.Msg) (CommandHandler, tea.Cmd, *CommandRe
 			return h, nil, nil
 		}
 
+		if h.showingJiraHelp {
+			h.showingJiraHelp = false
+			h.commandError = ""
+			return h, nil, nil
+		}
+
 		if h.showingCommand {
 			switch msg.Type {
 			case tea.KeyEnter:
@@ -70,7 +76,7 @@ func (h CommandHandler) Update(msg tea.Msg) (CommandHandler, tea.Cmd, *CommandRe
 		}
 	}
 
-	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp {
+	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp && !h.showingJiraHelp {
 		var cmd tea.Cmd
 		h.textInput, cmd = h.textInput.Update(msg)
 		return h, cmd, nil
@@ -106,6 +112,12 @@ func (h StatisticsCommandHandler) Update(msg tea.Msg) (StatisticsCommandHandler,
 			return h, nil, nil
 		}
 
+		if h.showingJiraHelp {
+			h.showingJiraHelp = false
+			h.commandError = ""
+			return h, nil, nil
+		}
+
 		if h.showingCommand {
 			switch msg.Type {
 			case tea.KeyEnter:
@@ -145,7 +157,7 @@ func (h StatisticsCommandHandler) Update(msg tea.Msg) (StatisticsCommandHandler,
 		}
 	}
 
-	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp {
+	if h.enabled && !h.showingHelp && !h.showingCommand && !h.showingGitHelp && !h.showingJiraHelp {
 		var cmd tea.Cmd
 		h.textInput, cmd = h.textInput.Update(msg)
 		return h, cmd, nil

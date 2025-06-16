@@ -17,6 +17,10 @@ func (m Model) View() string {
 		return gitHelpView
 	}
 
+	if jiraHelpView := m.commandHandler.RenderJiraHelp(m.width, m.height); jiraHelpView != "" {
+		return jiraHelpView
+	}
+
 	horizontalPadding := 4
 	contentWidth := m.width - (horizontalPadding * 2)
 
