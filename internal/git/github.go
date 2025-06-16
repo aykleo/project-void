@@ -164,7 +164,7 @@ func (g *GitHubProvider) GetCommitsSinceByBranches(repoURL string, since time.Ti
 		matchesBranch := false
 
 		for _, targetBranch := range lowerBranchNames {
-			if branchLower == targetBranch {
+			if strings.Contains(branchLower, targetBranch) {
 				matchesBranch = true
 				break
 			}
@@ -200,7 +200,7 @@ func (g *GitHubProvider) GetCommitsSinceByAuthorsAndBranches(repoURL string, sin
 		branchLower := strings.ToLower(commit.Branch)
 		matchesBranch := false
 		for _, targetBranch := range lowerBranchNames {
-			if branchLower == targetBranch {
+			if strings.Contains(branchLower, targetBranch) {
 				matchesBranch = true
 				break
 			}
