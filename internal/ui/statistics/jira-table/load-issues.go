@@ -13,7 +13,6 @@ func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config 
 	m.loadingState = LoadingInProgress
 	m.progress.SetPercent(0.0)
 
-	m.progress.SetPercent(0.2)
 	issues, err := jiraClient.GetIssuesSince(since, config)
 	if err != nil {
 		m.loadingState = LoadingError
@@ -23,11 +22,6 @@ func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config 
 
 	rows := make([]table.Row, len(issues))
 	for i, issue := range issues {
-		if len(issues) > 0 {
-			progress := 0.2 + (0.7 * float64(i) / float64(len(issues)))
-			m.progress.SetPercent(progress)
-		}
-
 		action := issue.UserAction
 		if len(action) > 11 {
 			action = action[:8] + "..."
@@ -56,9 +50,6 @@ func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config 
 		}
 	}
 
-	m.progress.SetPercent(0.9)
 	m.table.SetRows(rows)
-	m.progress.SetPercent(1.0)
-	m.loadingState = LoadingComplete
 	return nil
 }
