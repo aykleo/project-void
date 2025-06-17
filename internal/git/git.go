@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"project-void/internal/helpers"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -75,7 +77,7 @@ func GetCommitsSinceByAuthorsAndBranches(repoPathOrURL string, since time.Time, 
 }
 
 func getCommitsSinceLocal(repoPath string, since time.Time) ([]Commit, error) {
-	since = ToMidnight(since)
+	since = helpers.ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
@@ -138,7 +140,7 @@ func getCommitsSinceLocal(repoPath string, since time.Time) ([]Commit, error) {
 }
 
 func getCommitsSinceByAuthorsLocal(repoPath string, since time.Time, authorNames []string) ([]Commit, error) {
-	since = ToMidnight(since)
+	since = helpers.ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
@@ -218,7 +220,7 @@ func getCommitsSinceByAuthorsLocal(repoPath string, since time.Time, authorNames
 }
 
 func getCommitsSinceByBranchesLocal(repoPath string, since time.Time, branchNames []string) ([]Commit, error) {
-	since = ToMidnight(since)
+	since = helpers.ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
@@ -299,7 +301,7 @@ func getCommitsSinceByBranchesLocal(repoPath string, since time.Time, branchName
 }
 
 func getCommitsSinceByAuthorsAndBranchesLocal(repoPath string, since time.Time, authorNames []string, branchNames []string) ([]Commit, error) {
-	since = ToMidnight(since)
+	since = helpers.ToMidnight(since)
 
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {

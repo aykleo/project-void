@@ -2,6 +2,7 @@ package main
 
 import (
 	"project-void/internal/git"
+	"project-void/internal/helpers"
 	"project-void/internal/jira"
 	"project-void/internal/ui/statistics"
 	"project-void/internal/ui/welcome"
@@ -59,7 +60,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if welcomeDate := m.welcomeModel.GetSelectedDate(); welcomeDate != nil {
 					selectedDate = *welcomeDate
 				} else {
-					selectedDate = time.Now()
+					selectedDate = helpers.ToMidnight(time.Now())
 				}
 
 				repoSource := git.GetConfiguredRepoSource()
