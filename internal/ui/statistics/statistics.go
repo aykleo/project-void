@@ -5,7 +5,6 @@ import (
 	"project-void/internal/ui/common"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
-	slacktable "project-void/internal/ui/statistics/slack-table"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -16,12 +15,13 @@ import (
 type Model struct {
 	commitsTable       commitstable.Model
 	jiraTable          jiratable.Model
-	slackTable         slacktable.Model
 	commandHandler     common.StatisticsCommandHandler
 	selectedFolder     string
 	selectedRepoSource string
+	selectedJiraSource string
 	selectedDate       time.Time
-	isDev              bool
+	hasGit             bool
+	hasJira            bool
 	width              int
 	height             int
 	loaded             bool
@@ -33,20 +33,14 @@ type Model struct {
 	branchFilter       []string
 	commitsSpinner     spinner.Model
 	jiraSpinner        spinner.Model
-	slackSpinner       spinner.Model
 	commitsLoading     bool
 	jiraLoading        bool
-	slackLoading       bool
+	noConfigMessage    string
 }
 
-func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Model {
+func InitialModel(selectedFolder string, selectedDate time.Time, hasGit, hasJira bool) Model {
 	commitsTable := commitstable.InitialModel()
 	jiraTable := jiratable.InitialModel()
-	slackTable := slacktable.InitialModel()
-
-	commitsTable.StartLoading()
-	jiraTable.StartLoading()
-	slackTable.StartLoading()
 
 	spinnerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 
@@ -58,10 +52,6 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 	jiraSpinner.Style = spinnerStyle
 	jiraSpinner.Spinner = spinner.Dot
 
-	slackSpinner := spinner.New()
-	slackSpinner.Style = spinnerStyle
-	slackSpinner.Spinner = spinner.Dot
-
 	repoSource := selectedFolder
 	if selectedFolder == "" {
 		if gitConfig, err := config.LoadUserConfig(); err == nil && gitConfig.Git.RepoURL != "" {
@@ -69,58 +59,73 @@ func InitialModel(selectedFolder string, selectedDate time.Time, isDev bool) Mod
 		}
 	}
 
-	actualIsDev := repoSource != ""
+	jiraSource := selectedFolder
+	if selectedFolder == "" {
+		if jiraConfig, err := config.LoadUserConfig(); err == nil && jiraConfig.Jira.BaseURL != "" {
+			jiraSource = jiraConfig.Jira.BaseURL
+		}
+	}
 
-	if actualIsDev {
+	actualHasGit := hasGit
+	actualHasJira := hasJira
+
+	if actualHasGit {
+		commitsTable.StartLoading()
+	}
+	if actualHasJira {
+		jiraTable.StartLoading()
+	}
+	noConfigMessage := "Please use 'void help', 'void help git', or 'void help jira' to configure your repositories"
+
+	if actualHasGit && actualHasJira {
 		commitsTable.Focus()
 		commitsTable.SetFocusedStyle()
 		jiraTable.Blur()
 		jiraTable.SetBlurredStyle()
-		slackTable.Blur()
-		slackTable.SetBlurredStyle()
-	} else {
+	} else if !actualHasGit && actualHasJira {
 		jiraTable.Focus()
 		jiraTable.SetFocusedStyle()
-		slackTable.Blur()
-		slackTable.SetBlurredStyle()
+	} else if actualHasGit && !actualHasJira {
+		commitsTable.Focus()
+		commitsTable.SetFocusedStyle()
 	}
 
 	commitsTable.SetSpinner(&commitsSpinner)
 	jiraTable.SetSpinner(&jiraSpinner)
-	slackTable.SetSpinner(&slackSpinner)
 
 	return Model{
 		commitsTable:       commitsTable,
 		jiraTable:          jiraTable,
-		slackTable:         slackTable,
-		commandHandler:     common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", repoSource, actualIsDev),
+		commandHandler:     common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", repoSource, actualHasGit, actualHasJira),
 		selectedFolder:     selectedFolder,
 		selectedRepoSource: repoSource,
+		selectedJiraSource: jiraSource,
 		selectedDate:       selectedDate,
-		isDev:              actualIsDev,
+		hasGit:             actualHasGit,
+		hasJira:            actualHasJira,
+		noConfigMessage:    noConfigMessage,
 		focusedTable:       0,
 		commitsSpinner:     commitsSpinner,
 		jiraSpinner:        jiraSpinner,
-		slackSpinner:       slackSpinner,
-		commitsLoading:     true,
-		jiraLoading:        true,
-		slackLoading:       true,
+		commitsLoading:     actualHasGit,
+		jiraLoading:        actualHasJira,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		m.commitsTable.Init(),
-		m.jiraTable.Init(),
-		m.slackTable.Init(),
-		m.commandHandler.Init(),
-		m.commitsSpinner.Tick,
-		m.jiraSpinner.Tick,
-		m.slackSpinner.Tick,
-		loadCommitsCmd(m.selectedRepoSource, m.selectedDate),
-		loadJiraCmd(m.selectedDate),
-		loadSlackCmd(),
-	)
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, m.commandHandler.Init())
+
+	if m.hasGit {
+		cmds = append(cmds, m.commitsTable.Init(), m.commitsSpinner.Tick, loadCommitsCmd(m.selectedRepoSource, m.selectedDate))
+	}
+
+	if m.hasJira {
+		cmds = append(cmds, m.jiraTable.Init(), m.jiraSpinner.Tick, loadJiraCmd(m.selectedJiraSource, m.selectedDate))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 type LoadedMsg struct {
@@ -136,14 +141,6 @@ type JiraLoadedMsg struct {
 }
 
 type JiraLoadErrorMsg struct {
-	Error string
-}
-
-type SlackLoadedMsg struct {
-	SlackTable slacktable.Model
-}
-
-type SlackLoadErrorMsg struct {
 	Error string
 }
 

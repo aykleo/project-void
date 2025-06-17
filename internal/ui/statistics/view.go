@@ -35,82 +35,117 @@ func (m Model) View() string {
 	commandHeaderCentered := commandHeader
 
 	var mainContent string
-	if m.isDev && m.selectedRepoSource != "" {
-		commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
 
-		if len(m.authorFilter) > 0 {
-			authorFilterText := strings.Join(m.authorFilter, ", ")
-			commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
-		}
+	if !m.hasGit && !m.hasJira {
+		welcomeMessage := "Welcome to Project Void"
+		setupMessage := "Please configure at least one service to get started:\n\n• For Git: Use 'git repo <url>' to set up a repository\n• For JIRA: Use 'jira url <url>' to set up JIRA\n\nType 'void help' for more commands"
 
-		if len(m.branchFilter) > 0 {
-			branchFilterText := strings.Join(m.branchFilter, ", ")
-			if len(m.authorFilter) > 0 {
-				commitsHeader += fmt.Sprintf(" and branches: %s", branchFilterText)
-			} else {
-				commitsHeader += fmt.Sprintf(" (filtered by branches: %s)", branchFilterText)
-			}
-		}
+		welcomeStyled := styles.WelcomeStyle.Render(welcomeMessage)
+		setupStyled := styles.NeutralStyle.Render(setupMessage)
 
-		header := styles.WelcomeStyle.Render(commitsHeader)
-
-		var commitsText string
-		if m.commitsLoading {
-			commitsText = fmt.Sprintf("%s commits", m.commitsSpinner.View())
-		} else {
-			totalCommits := m.commitsTable.TotalCommits()
-			commitsText = fmt.Sprintf("%d commits", totalCommits)
-		}
-
-		var jiraText string
-		if m.jiraLoading {
-			jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
-		} else {
-			totalIssues := m.jiraTable.TotalIssues()
-			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
-		}
-
-		// var slackText string
-		// if m.slackLoading {
-		// 	slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
-		// } else {
-		// 	slackText = "0 Slack messages (coming soon)"
-		// }
-
-		dateInfo := fmt.Sprintf("%s, %s since %s", commitsText, jiraText, m.selectedDate.Format("January 2, 2006"))
-		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
-
-		tableView := m.commitsTable.View()
-		jiraView := m.jiraTable.View()
-
-		tableViewCentered := tableView
-		jiraViewCentered := jiraView
-
-		mainContent = header + "\n" + dateInfoRendered + "\n\n" + tableViewCentered + "\n\n" + jiraViewCentered
+		mainContent = welcomeStyled + "\n\n" + setupStyled
 	} else {
-		var jiraText string
-		if m.jiraLoading {
-			jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
-		} else {
-			totalIssues := m.jiraTable.TotalIssues()
-			jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
+		var contentParts []string
+
+		if m.hasGit && m.hasJira {
+			commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
+			jiraHeader := fmt.Sprintf("JIRA Issues for %s", m.selectedJiraSource)
+
+			if len(m.authorFilter) > 0 {
+				authorFilterText := strings.Join(m.authorFilter, ", ")
+				commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
+			}
+
+			if len(m.branchFilter) > 0 {
+				branchFilterText := strings.Join(m.branchFilter, ", ")
+				if len(m.authorFilter) > 0 {
+					commitsHeader += fmt.Sprintf(" and branches: %s", branchFilterText)
+				} else {
+					commitsHeader += fmt.Sprintf(" (filtered by branches: %s)", branchFilterText)
+				}
+			}
+
+			commitsHeader = styles.WelcomeStyle.Render(commitsHeader)
+			jiraHeader = styles.WelcomeStyle.Render(jiraHeader)
+			contentParts = append(contentParts, commitsHeader)
+			contentParts = append(contentParts, jiraHeader)
+
+			var commitsText string
+			if m.commitsLoading {
+				commitsText = fmt.Sprintf("%s commits", m.commitsSpinner.View())
+			} else {
+				totalCommits := m.commitsTable.TotalCommits()
+				commitsText = fmt.Sprintf("%d commits", totalCommits)
+			}
+
+			var jiraText string
+			if m.jiraLoading {
+				jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
+			} else {
+				totalIssues := m.jiraTable.TotalIssues()
+				jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
+			}
+
+			dateInfo := fmt.Sprintf("%s, %s since %s", commitsText, jiraText, m.selectedDate.Format("January 2, 2006"))
+			contentParts = append(contentParts, styles.NeutralStyle.Render(dateInfo))
+
+			contentParts = append(contentParts, m.commitsTable.View())
+
+			contentParts = append(contentParts, m.jiraTable.View())
+
+		} else if m.hasGit {
+			commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
+
+			if len(m.authorFilter) > 0 {
+				authorFilterText := strings.Join(m.authorFilter, ", ")
+				commitsHeader += fmt.Sprintf(" (filtered by authors: %s)", authorFilterText)
+			}
+
+			if len(m.branchFilter) > 0 {
+				branchFilterText := strings.Join(m.branchFilter, ", ")
+				if len(m.authorFilter) > 0 {
+					commitsHeader += fmt.Sprintf(" and branches: %s", branchFilterText)
+				} else {
+					commitsHeader += fmt.Sprintf(" (filtered by branches: %s)", branchFilterText)
+				}
+			}
+
+			header := styles.WelcomeStyle.Render(commitsHeader)
+			contentParts = append(contentParts, header)
+
+			var commitsText string
+			if m.commitsLoading {
+				commitsText = fmt.Sprintf("%s commits", m.commitsSpinner.View())
+			} else {
+				totalCommits := m.commitsTable.TotalCommits()
+				commitsText = fmt.Sprintf("%d commits", totalCommits)
+			}
+
+			dateInfo := fmt.Sprintf("%s since %s", commitsText, m.selectedDate.Format("January 2, 2006"))
+			contentParts = append(contentParts, styles.NeutralStyle.Render(dateInfo))
+
+			contentParts = append(contentParts, m.commitsTable.View())
+
+		} else if m.hasJira {
+			jiraHeader := fmt.Sprintf("JIRA Issues for %s", m.selectedJiraSource)
+			header := styles.WelcomeStyle.Render(jiraHeader)
+			contentParts = append(contentParts, header)
+
+			var jiraText string
+			if m.jiraLoading {
+				jiraText = fmt.Sprintf("%s JIRA issues", m.jiraSpinner.View())
+			} else {
+				totalIssues := m.jiraTable.TotalIssues()
+				jiraText = fmt.Sprintf("%d JIRA issues", totalIssues)
+			}
+
+			dateInfo := fmt.Sprintf("%s since %s", jiraText, m.selectedDate.Format("January 2, 2006"))
+			contentParts = append(contentParts, styles.NeutralStyle.Render(dateInfo))
+
+			contentParts = append(contentParts, m.jiraTable.View())
 		}
 
-		// var slackText string
-		// if m.slackLoading {
-		// 	slackText = fmt.Sprintf("%s Slack messages (coming soon)", m.slackSpinner.View())
-		// } else {
-		// 	slackText = "0 Slack messages (coming soon)"
-		// }
-
-		dateInfo := fmt.Sprintf("%s since %s", jiraText, m.selectedDate.Format("January 2, 2006"))
-		dateInfoRendered := styles.NeutralStyle.Render(dateInfo)
-
-		jiraView := m.jiraTable.View()
-
-		jiraViewStyled := jiraView
-
-		mainContent = dateInfoRendered + "\n\n" + jiraViewStyled
+		mainContent = strings.Join(contentParts, "\n")
 	}
 
 	fullContent := mainContent + "\n" + commandHeaderCentered

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type Config struct {
+type JiraConfig struct {
 	BaseURL        string
 	Username       string
 	ApiToken       string
@@ -18,14 +18,14 @@ type Config struct {
 	UserFilterType string
 }
 
-func LoadConfig() (*Config, error) {
+func LoadConfig() (*JiraConfig, error) {
 
 	userConfig, err := config.LoadUserConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user config: %w", err)
 	}
 
-	jiraConfig := &Config{
+	jiraConfig := &JiraConfig{
 		BaseURL:        userConfig.Jira.BaseURL,
 		Username:       userConfig.Jira.Username,
 		ApiToken:       userConfig.Jira.ApiToken,
@@ -94,7 +94,35 @@ func LoadConfig() (*Config, error) {
 	return jiraConfig, nil
 }
 
-func NewClientFromConfig(config *Config) *JiraClient {
+func ShouldEnableJiraMode() bool {
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		return false
+	}
+
+	baseURL := userConfig.Jira.BaseURL
+	if baseURL == "" {
+		baseURL = os.Getenv("JIRA_BASE_URL")
+	}
+
+	return baseURL != ""
+}
+
+func GetConfiguredJiraSource() string {
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		return ""
+	}
+
+	baseURL := userConfig.Jira.BaseURL
+	if baseURL == "" {
+		baseURL = os.Getenv("JIRA_BASE_URL")
+	}
+
+	return baseURL
+}
+
+func NewClientFromConfig(config *JiraConfig) *JiraClient {
 	return &JiraClient{
 		BaseURL:  config.BaseURL,
 		Username: config.Username,

@@ -2,9 +2,10 @@ package statistics
 
 import (
 	"project-void/internal/commands"
+	"project-void/internal/config"
+	"project-void/internal/ui/common"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
-	slacktable "project-void/internal/ui/statistics/slack-table"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -24,7 +25,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		availableHeight := msg.Height - 12
 
-		if m.isDev {
+		if m.hasGit || m.hasJira {
 			tableHeight := availableHeight / 3
 			if tableHeight < 3 {
 				tableHeight = 3
@@ -38,16 +39,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			jiraMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
-			slackMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
 			updatedJira, cmd2 := m.jiraTable.Update(jiraMsg)
-			updatedSlack, cmd3 := m.slackTable.Update(slackMsg)
 			m.jiraTable = updatedJira.(jiratable.Model)
-			m.slackTable = updatedSlack.(slacktable.Model)
 			if cmd2 != nil {
 				cmds = append(cmds, cmd2)
-			}
-			if cmd3 != nil {
-				cmds = append(cmds, cmd3)
 			}
 		} else {
 			tableHeight := availableHeight / 2
@@ -56,53 +51,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			jiraMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
-			slackMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
 			updatedJira, cmd2 := m.jiraTable.Update(jiraMsg)
-			updatedSlack, cmd3 := m.slackTable.Update(slackMsg)
 			m.jiraTable = updatedJira.(jiratable.Model)
-			m.slackTable = updatedSlack.(slacktable.Model)
 			if cmd2 != nil {
 				cmds = append(cmds, cmd2)
 			}
-			if cmd3 != nil {
-				cmds = append(cmds, cmd3)
-			}
 		}
 
-		if m.isDev {
+		if m.hasGit || m.hasJira {
 			if m.focusedTable == 0 {
 				m.commitsTable.Focus()
 				m.commitsTable.SetFocusedStyle()
 				m.jiraTable.Blur()
 				m.jiraTable.SetBlurredStyle()
-				m.slackTable.Blur()
-				m.slackTable.SetBlurredStyle()
 			} else if m.focusedTable == 1 {
 				m.commitsTable.Blur()
 				m.commitsTable.SetBlurredStyle()
 				m.jiraTable.Focus()
 				m.jiraTable.SetFocusedStyle()
-				m.slackTable.Blur()
-				m.slackTable.SetBlurredStyle()
 			} else {
 				m.commitsTable.Blur()
 				m.commitsTable.SetBlurredStyle()
 				m.jiraTable.Blur()
 				m.jiraTable.SetBlurredStyle()
-				m.slackTable.Focus()
-				m.slackTable.SetFocusedStyle()
 			}
 		} else {
 			if m.focusedTable == 0 {
 				m.jiraTable.Focus()
 				m.jiraTable.SetFocusedStyle()
-				m.slackTable.Blur()
-				m.slackTable.SetBlurredStyle()
 			} else {
 				m.jiraTable.Blur()
 				m.jiraTable.SetBlurredStyle()
-				m.slackTable.Focus()
-				m.slackTable.SetFocusedStyle()
 			}
 		}
 		return m, tea.Batch(cmds...)
@@ -139,7 +118,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, cmd
 						}
 
-						if m.isDev && m.selectedRepoSource != "" {
+						if m.hasGit && m.selectedRepoSource != "" {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.authorFilter = authorNames
 							m.commitsLoading = true
@@ -161,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "clear_author_filter" {
-					if m.isDev && m.selectedRepoSource != "" {
+					if m.hasGit && m.selectedRepoSource != "" {
 						m.authorFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
@@ -189,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, cmd
 						}
 
-						if m.isDev && m.selectedRepoSource != "" {
+						if m.hasGit && m.selectedRepoSource != "" {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.branchFilter = branchNames
 							m.commitsLoading = true
@@ -211,7 +190,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "clear_branch_filter" {
-					if m.isDev && m.selectedRepoSource != "" {
+					if m.hasGit && m.selectedRepoSource != "" {
 						m.branchFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
@@ -232,7 +211,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "start" || result.Action == "reset" {
-					if m.isDev && m.selectedRepoSource != "" && (len(m.authorFilter) > 0 || len(m.branchFilter) > 0) {
+					if m.hasGit && m.selectedRepoSource != "" && (len(m.authorFilter) > 0 || len(m.branchFilter) > 0) {
 						m.authorFilter = nil
 						m.branchFilter = nil
 						m.commitsLoading = true
@@ -254,7 +233,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 						var cmds []tea.Cmd
 
-						if m.isDev && m.selectedRepoSource != "" {
+						if m.hasGit && m.selectedRepoSource != "" {
 							m.commitsLoading = true
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							cmds = append(cmds, tickCmd, m.commitsSpinner.Tick)
@@ -276,15 +255,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							cmds = append(cmds, loadCmd)
 						}
 
-						m.jiraLoading = true
-						jiraTickCmd := m.jiraTable.StartLoadingWithCmd()
-						jiraLoadCmd := loadJiraCmd(m.selectedDate)
-						cmds = append(cmds, jiraTickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
-
-						m.slackLoading = true
-						m.slackTable.StartLoading()
-						slackLoadCmd := loadSlackCmd()
-						cmds = append(cmds, slackLoadCmd, m.slackSpinner.Tick)
+						if m.hasJira && m.selectedJiraSource != "" {
+							m.jiraLoading = true
+							jiraTickCmd := m.jiraTable.StartLoadingWithCmd()
+							jiraLoadCmd := loadJiraCmd(m.selectedJiraSource, m.selectedDate)
+							cmds = append(cmds, jiraTickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
+						}
 
 						return m, tea.Batch(cmds...)
 					}
@@ -292,12 +268,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "jira_filter_on" || result.Action == "jira_filter_off" {
-					if result.Success {
-
-						m.jiraLoading = true
-						tickCmd := m.jiraTable.StartLoadingWithCmd()
-						jiraLoadCmd := loadJiraCmd(m.selectedDate)
-						return m, tea.Batch(tickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
+					if m.hasJira && m.selectedJiraSource != "" {
+						if result.Success {
+							m.jiraLoading = true
+							tickCmd := m.jiraTable.StartLoadingWithCmd()
+							jiraLoadCmd := loadJiraCmd(m.selectedJiraSource, m.selectedDate)
+							return m, tea.Batch(tickCmd, jiraLoadCmd, m.jiraSpinner.Tick)
+						}
 					}
 					return m, cmd
 				}
@@ -307,12 +284,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if repoData, ok := result.Data["repoURL"].(string); ok {
 							m.selectedRepoSource = repoData
 
-							m.isDev = m.selectedRepoSource != ""
+							m.hasGit = m.selectedRepoSource != ""
+
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
 
 							m.authorFilter = nil
 							m.branchFilter = nil
 
-							if m.isDev && m.selectedRepoSource != "" {
+							if m.hasGit && m.hasJira {
+								m.commitsTable.Focus()
+								m.commitsTable.SetFocusedStyle()
+								m.jiraTable.Blur()
+								m.jiraTable.SetBlurredStyle()
+								m.focusedTable = 0
+							} else if !m.hasGit && m.hasJira {
+								m.jiraTable.Focus()
+								m.jiraTable.SetFocusedStyle()
+								m.focusedTable = 0
+							}
+
+							if m.hasGit && m.selectedRepoSource != "" {
 								m.commitsLoading = true
 								tickCmd := m.commitsTable.StartLoadingWithCmd()
 								loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
@@ -325,13 +316,61 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return m, cmd
 				}
+
+				if result.Action == "jira_set_url" || result.Action == "jira_set_user" || result.Action == "jira_set_token" || result.Action == "jira_set_project" {
+					if result.Success {
+						if jiraConfig, err := config.LoadUserConfig(); err == nil && jiraConfig.Jira.BaseURL != "" {
+							m.selectedJiraSource = jiraConfig.Jira.BaseURL
+							m.hasJira = true
+
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
+
+							if m.hasGit && m.hasJira {
+								if m.focusedTable == 0 {
+									m.commitsTable.Focus()
+									m.commitsTable.SetFocusedStyle()
+									m.jiraTable.Blur()
+									m.jiraTable.SetBlurredStyle()
+								} else if m.focusedTable == 1 {
+									m.commitsTable.Blur()
+									m.commitsTable.SetBlurredStyle()
+									m.jiraTable.Focus()
+									m.jiraTable.SetFocusedStyle()
+								}
+							} else if !m.hasGit && m.hasJira {
+								m.jiraTable.Focus()
+								m.jiraTable.SetFocusedStyle()
+							}
+
+							if jiraConfig.Jira.BaseURL != "" && jiraConfig.Jira.Username != "" && jiraConfig.Jira.ApiToken != "" {
+								m.jiraLoading = true
+								tickCmd := m.jiraTable.StartLoadingWithCmd()
+								loadCmd := loadJiraCmd(m.selectedJiraSource, m.selectedDate)
+								return m, tea.Batch(tickCmd, loadCmd, m.jiraSpinner.Tick)
+							}
+						} else {
+							m.selectedJiraSource = ""
+							m.hasJira = false
+							m.jiraTable = jiratable.InitialModel()
+
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
+
+							if m.hasGit {
+								m.commitsTable.Focus()
+								m.commitsTable.SetFocusedStyle()
+								m.focusedTable = 0
+							}
+						}
+					}
+					return m, cmd
+				}
 			}
 
 			return m, cmd
 		}
 
 		if key == "w" || key == "s" {
-			if m.isDev {
+			if m.hasGit || m.hasJira {
 				if key == "w" {
 					m.focusedTable = (m.focusedTable + 2) % 3
 				} else {
@@ -345,40 +384,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			if m.isDev {
+			if m.hasGit {
 				if m.focusedTable == 0 {
 					m.commitsTable.Focus()
 					m.commitsTable.SetFocusedStyle()
 					m.jiraTable.Blur()
 					m.jiraTable.SetBlurredStyle()
-					m.slackTable.Blur()
-					m.slackTable.SetBlurredStyle()
 				} else if m.focusedTable == 1 {
 					m.commitsTable.Blur()
 					m.commitsTable.SetBlurredStyle()
 					m.jiraTable.Focus()
 					m.jiraTable.SetFocusedStyle()
-					m.slackTable.Blur()
-					m.slackTable.SetBlurredStyle()
 				} else {
 					m.commitsTable.Blur()
 					m.commitsTable.SetBlurredStyle()
 					m.jiraTable.Blur()
 					m.jiraTable.SetBlurredStyle()
-					m.slackTable.Focus()
-					m.slackTable.SetFocusedStyle()
 				}
 			} else {
 				if m.focusedTable == 0 {
 					m.jiraTable.Focus()
 					m.jiraTable.SetFocusedStyle()
-					m.slackTable.Blur()
-					m.slackTable.SetBlurredStyle()
 				} else {
 					m.jiraTable.Blur()
 					m.jiraTable.SetBlurredStyle()
-					m.slackTable.Focus()
-					m.slackTable.SetFocusedStyle()
 				}
 			}
 			return m, nil
@@ -386,7 +415,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		rowKeys := map[string]bool{"up": true, "down": true, "k": true, "j": true, "pgup": true, "pgdown": true, "home": true, "end": true}
 		if rowKeys[key] {
-			if m.isDev {
+			if m.hasGit {
 				if m.focusedTable == 0 {
 					updated, cmd := m.commitsTable.Update(msg)
 					m.commitsTable = updated.(commitstable.Model)
@@ -395,19 +424,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					updated, cmd := m.jiraTable.Update(msg)
 					m.jiraTable = updated.(jiratable.Model)
 					return m, cmd
-				} else {
-					updated, cmd := m.slackTable.Update(msg)
-					m.slackTable = updated.(slacktable.Model)
-					return m, cmd
 				}
 			} else {
 				if m.focusedTable == 0 {
 					updated, cmd := m.jiraTable.Update(msg)
 					m.jiraTable = updated.(jiratable.Model)
-					return m, cmd
-				} else {
-					updated, cmd := m.slackTable.Update(msg)
-					m.slackTable = updated.(slacktable.Model)
 					return m, cmd
 				}
 			}
@@ -419,19 +440,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
-		updatedSlack, cmd3 := m.slackTable.Update(msg)
 		m.commitsTable = updatedCommits.(commitstable.Model)
 		m.jiraTable = updatedJira.(jiratable.Model)
-		m.slackTable = updatedSlack.(slacktable.Model)
 
 		if cmd1 != nil {
 			cmds = append(cmds, cmd1)
 		}
 		if cmd2 != nil {
 			cmds = append(cmds, cmd2)
-		}
-		if cmd3 != nil {
-			cmds = append(cmds, cmd3)
 		}
 		return m, tea.Batch(cmds...)
 
@@ -442,7 +458,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updatedCommits, cmd := m.commitsTable.Update(commitstable.LoadingCompleteMsg{})
 		m.commitsTable = updatedCommits.(commitstable.Model)
 
-		if m.isDev && m.focusedTable == 0 {
+		if m.hasGit && m.focusedTable == 0 {
 			m.commitsTable.Focus()
 			m.commitsTable.SetFocusedStyle()
 		} else {
@@ -466,7 +482,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updatedJira, cmd := m.jiraTable.Update(jiratable.LoadingCompleteMsg{})
 		m.jiraTable = updatedJira.(jiratable.Model)
 
-		if (m.isDev && m.focusedTable == 1) || (!m.isDev && m.focusedTable == 0) {
+		if (m.hasGit && m.focusedTable == 1) || (!m.hasGit && m.focusedTable == 0) {
 			m.jiraTable.Focus()
 			m.jiraTable.SetFocusedStyle()
 		} else {
@@ -482,28 +498,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case JiraLoadErrorMsg:
 		return m, nil
 
-	case SlackLoadedMsg:
-		m.slackLoading = false
-		m.slackTable = msg.SlackTable
-		updatedSlack, cmd := m.slackTable.Update(slacktable.LoadingCompleteMsg{})
-		m.slackTable = updatedSlack.(slacktable.Model)
-
-		if (m.isDev && m.focusedTable == 2) || (!m.isDev && m.focusedTable == 1) {
-			m.slackTable.Focus()
-			m.slackTable.SetFocusedStyle()
-		} else {
-			m.slackTable.Blur()
-			m.slackTable.SetBlurredStyle()
-		}
-
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		return m, tea.Batch(cmds...)
-
-	case SlackLoadErrorMsg:
-		return m, nil
-
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		if m.commitsLoading {
@@ -516,29 +510,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.jiraTable.SetSpinner(&m.jiraSpinner)
 			cmds = append(cmds, cmd)
 		}
-		if m.slackLoading {
-			m.slackSpinner, cmd = m.slackSpinner.Update(msg)
-			m.slackTable.SetSpinner(&m.slackSpinner)
-			cmds = append(cmds, cmd)
-		}
 		return m, tea.Batch(cmds...)
 
 	default:
 		updatedCommits, cmd1 := m.commitsTable.Update(msg)
 		updatedJira, cmd2 := m.jiraTable.Update(msg)
-		updatedSlack, cmd3 := m.slackTable.Update(msg)
 		m.commitsTable = updatedCommits.(commitstable.Model)
 		m.jiraTable = updatedJira.(jiratable.Model)
-		m.slackTable = updatedSlack.(slacktable.Model)
 
 		if cmd1 != nil {
 			cmds = append(cmds, cmd1)
 		}
 		if cmd2 != nil {
 			cmds = append(cmds, cmd2)
-		}
-		if cmd3 != nil {
-			cmds = append(cmds, cmd3)
 		}
 		return m, tea.Batch(cmds...)
 	}

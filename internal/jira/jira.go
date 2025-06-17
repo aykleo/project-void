@@ -39,7 +39,7 @@ func NewJiraClient(baseURL, username, apiToken string) *JiraClient {
 	}
 }
 
-func (c *JiraClient) GetIssuesSince(since time.Time, config *Config) ([]Issue, error) {
+func (c *JiraClient) GetIssuesSince(since time.Time, config *JiraConfig) ([]Issue, error) {
 	sinceStr := since.Format("2006-01-02")
 
 	jql := fmt.Sprintf("updated >= '%s'", sinceStr)
@@ -194,7 +194,7 @@ func (c *JiraClient) GetIssuesSince(since time.Time, config *Config) ([]Issue, e
 	return allIssues, nil
 }
 
-func (c *JiraClient) determineUserAction(config *Config, assignee, reporter string) string {
+func (c *JiraClient) determineUserAction(config *JiraConfig, assignee, reporter string) string {
 	if !config.FilterByUser {
 		return "All Issues"
 	}

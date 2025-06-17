@@ -2,6 +2,7 @@ package main
 
 import (
 	"project-void/internal/git"
+	"project-void/internal/jira"
 	"project-void/internal/ui/statistics"
 	"project-void/internal/ui/welcome"
 	"time"
@@ -62,8 +63,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				repoSource := git.GetConfiguredRepoSource()
+				hasGit := git.ShouldEnableDevMode()
+				hasJira := jira.ShouldEnableJiraMode()
 
-				m.statsModel = statistics.InitialModel(repoSource, selectedDate, false)
+				m.statsModel = statistics.InitialModel(repoSource, selectedDate, hasGit, hasJira)
 
 				initCmd := m.statsModel.Init()
 

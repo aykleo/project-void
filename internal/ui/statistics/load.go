@@ -5,7 +5,6 @@ import (
 	"project-void/internal/jira"
 	commitstable "project-void/internal/ui/statistics/commits-table"
 	jiratable "project-void/internal/ui/statistics/jira-table"
-	slacktable "project-void/internal/ui/statistics/slack-table"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -87,8 +86,14 @@ func loadCommitsByAuthorsAndBranchesCmd(repoSource string, since time.Time, auth
 	})
 }
 
-func loadJiraCmd(since time.Time) tea.Cmd {
+func loadJiraCmd(jiraSource string, since time.Time) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
+		if jiraSource == "" {
+			emptyTable := jiratable.InitialModel()
+			emptyTable.StartLoading()
+			return JiraLoadedMsg{JiraTable: emptyTable}
+		}
+
 		var jiraTable jiratable.Model = jiratable.InitialModel()
 		jiraTable.StartLoading()
 
@@ -104,14 +109,5 @@ func loadJiraCmd(since time.Time) tea.Cmd {
 			return JiraLoadErrorMsg{Error: fmt.Sprintf("Failed to load JIRA issues: %v", err)}
 		}
 		return JiraLoadedMsg{JiraTable: jiraTable}
-	})
-}
-
-func loadSlackCmd() tea.Cmd {
-	return tea.Cmd(func() tea.Msg {
-		var slackTable slacktable.Model = slacktable.InitialModel()
-		slackTable.StartLoading()
-		slackTable.SetPlaceholder()
-		return SlackLoadedMsg{SlackTable: slackTable}
 	})
 }

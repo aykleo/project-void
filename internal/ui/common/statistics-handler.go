@@ -10,14 +10,16 @@ import (
 type StatisticsCommandHandler struct {
 	CommandHandler
 	selectedFolder string
-	isDev          bool
+	hasGit         bool
+	hasJira        bool
 }
 
-func NewStatisticsCommandHandler(placeholder, selectedFolder string, isDev bool) StatisticsCommandHandler {
+func NewStatisticsCommandHandler(placeholder, selectedFolder string, hasGit, hasJira bool) StatisticsCommandHandler {
 	return StatisticsCommandHandler{
 		CommandHandler: NewCommandHandler(placeholder),
 		selectedFolder: selectedFolder,
-		isDev:          isDev,
+		hasGit:         hasGit,
+		hasJira:        hasJira,
 	}
 }
 

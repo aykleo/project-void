@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 )
 
-func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config *jira.Config) error {
+func (m *Model) LoadIssues(jiraClient *jira.JiraClient, since time.Time, config *jira.JiraConfig) error {
 	m.loadingState = LoadingInProgress
 	m.progress.SetPercent(0.0)
 
