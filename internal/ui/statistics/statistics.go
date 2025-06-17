@@ -59,11 +59,9 @@ func InitialModel(selectedFolder string, selectedDate time.Time, hasGit, hasJira
 		}
 	}
 
-	jiraSource := selectedFolder
-	if selectedFolder == "" {
-		if jiraConfig, err := config.LoadUserConfig(); err == nil && jiraConfig.Jira.BaseURL != "" {
-			jiraSource = jiraConfig.Jira.BaseURL
-		}
+	jiraSource := ""
+	if jiraConfig, err := config.LoadUserConfig(); err == nil && jiraConfig.Jira.BaseURL != "" {
+		jiraSource = jiraConfig.Jira.BaseURL
 	}
 
 	actualHasGit := hasGit
