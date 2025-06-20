@@ -214,3 +214,11 @@ func (h *CommandHandler) SetSuccess(message string) {
 	h.successMessage = message
 	h.commandError = ""
 }
+
+func (h CommandHandler) HasSuccessMessage() bool {
+	return h.successMessage != ""
+}
+
+func (h CommandHandler) GetSuccessMessage() string {
+	return h.successMessage
+}

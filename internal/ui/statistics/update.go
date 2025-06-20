@@ -339,6 +339,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, cmd
 				}
 
+				if result.Action == "git_list_repos" {
+
+					return m, cmd
+				}
+
 				if result.Action == "git_set_repo" || result.Action == "git_clear_repo" || result.Action == "git_remove_repo" {
 					if result.Success {
 						if repoData, ok := result.Data["repoURLs"].([]string); ok {

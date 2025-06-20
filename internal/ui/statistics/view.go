@@ -29,7 +29,15 @@ func (m Model) View() string {
 		commandHeader = commandInput
 	} else {
 		navHelp := "\nw/s: navigate tables • c: commands • esc: exit"
-		commandHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
+
+		if m.commandHandler.HasSuccessMessage() {
+			successText := m.commandHandler.GetSuccessMessage()
+			successStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("34")).Render(successText)
+			navHelpStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
+			commandHeader = successStyled + navHelpStyled
+		} else {
+			commandHeader = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(navHelp)
+		}
 	}
 
 	commandHeaderCentered := commandHeader
