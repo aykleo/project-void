@@ -54,15 +54,34 @@ type tickMsg time.Time
 type LoadingCompleteMsg struct{}
 
 func getCommitTableColumns(width int) []table.Column {
+	if width < 60 {
+		width = 60
+	}
+
 	branchWidth := 12
 	authorWidth := 20
 	dateWidth := 12
 	repoWidth := 15
 	numColumns := 5
-	messageWidth := width - branchWidth - authorWidth - dateWidth - repoWidth - 10 - (numColumns - 1)
+
+	borderPadding := 10 + (numColumns-1)*2
+
+	messageWidth := width - branchWidth - authorWidth - dateWidth - repoWidth - borderPadding
+
 	if messageWidth < 20 {
 		messageWidth = 20
+		if width < 100 {
+			branchWidth = 10
+			authorWidth = 15
+			dateWidth = 10
+			repoWidth = 12
+			messageWidth = width - branchWidth - authorWidth - dateWidth - repoWidth - borderPadding
+			if messageWidth < 15 {
+				messageWidth = 15
+			}
+		}
 	}
+
 	return []table.Column{
 		{Title: "Repo", Width: repoWidth},
 		{Title: "Branch", Width: branchWidth},

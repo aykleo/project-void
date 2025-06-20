@@ -21,24 +21,45 @@ func (m Model) View() string {
 			progressView,
 		)
 
+		if m.width > 0 {
+			content = lipgloss.NewStyle().
+				Width(m.width).
+				Align(lipgloss.Center).
+				Render(content)
+		}
+
 		return content
 	}
 
 	if m.loadingState == LoadingError {
 		errorText := fmt.Sprintf("Error loading JIRA issues: %s", m.loadError)
-		content := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText)
 
+		if m.width > 0 {
+			content := lipgloss.NewStyle().
+				Width(m.width).
+				Align(lipgloss.Center).
+				Foreground(lipgloss.Color("196")).
+				Render(errorText)
+			return content
+		}
+
+		content := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(errorText)
 		return content
 	}
 
-	tableView := baseStyle.Render(m.table.View())
-
+	var tableView string
 	if m.borderFocused {
-		tableView = focusedStyle.Render(m.table.View())
-	}
-
-	if m.width > 0 {
-		return lipgloss.NewStyle().Width(m.width).Render(tableView)
+		style := focusedStyle
+		if m.width > 0 {
+			style = style.Width(m.width)
+		}
+		tableView = style.Render(m.table.View())
+	} else {
+		style := baseStyle
+		if m.width > 0 {
+			style = style.Width(m.width)
+		}
+		tableView = style.Render(m.table.View())
 	}
 
 	return tableView

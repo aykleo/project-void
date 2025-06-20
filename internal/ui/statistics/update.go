@@ -32,8 +32,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		availableHeight := msg.Height - 12
 
-		if m.hasGit || m.hasJira {
-			tableHeight := availableHeight / 3
+		if m.hasGit && m.hasJira {
+			tableHeight := availableHeight / 2
 			if tableHeight < 3 {
 				tableHeight = 3
 			}
@@ -51,7 +51,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd2 != nil {
 				cmds = append(cmds, cmd2)
 			}
-		} else {
+		} else if m.hasGit {
+			tableHeight := availableHeight / 2
+			if tableHeight < 3 {
+				tableHeight = 3
+			}
+
+			commitsMsg := tea.WindowSizeMsg{Width: contentWidth, Height: tableHeight}
+			updatedCommits, cmd1 := m.commitsTable.Update(commitsMsg)
+			m.commitsTable = updatedCommits.(commitstable.Model)
+			if cmd1 != nil {
+				cmds = append(cmds, cmd1)
+			}
+		} else if m.hasJira {
 			tableHeight := availableHeight / 2
 			if tableHeight < 3 {
 				tableHeight = 3
@@ -429,13 +441,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key == "w" || key == "s" {
 			if m.hasGit || m.hasJira {
 				if key == "w" {
-					m.focusedTable = (m.focusedTable + 2) % 3
-				} else {
-					m.focusedTable = (m.focusedTable + 1) % 3
-				}
-			} else {
-				if key == "w" {
-					m.focusedTable = (m.focusedTable + 1) % 2
+					m.focusedTable = (m.focusedTable + 2) % 2
 				} else {
 					m.focusedTable = (m.focusedTable + 1) % 2
 				}

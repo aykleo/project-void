@@ -53,15 +53,34 @@ type tickMsg time.Time
 type LoadingCompleteMsg struct{}
 
 func getJiraTableColumns(width int) []table.Column {
+	if width < 60 {
+		width = 60
+	}
+
 	issueWidth := 8
 	statusWidth := 14
 	actionWidth := 11
 	dateWidth := 10
 	numColumns := 5
-	summaryWidth := width - issueWidth - statusWidth - actionWidth - dateWidth - 11 - (numColumns - 1)
+
+	borderPadding := 11 + (numColumns-1)*2
+
+	summaryWidth := width - issueWidth - statusWidth - actionWidth - dateWidth - borderPadding
+
 	if summaryWidth < 20 {
 		summaryWidth = 20
+		if width < 80 {
+			issueWidth = 6
+			statusWidth = 10
+			actionWidth = 8
+			dateWidth = 8
+			summaryWidth = width - issueWidth - statusWidth - actionWidth - dateWidth - borderPadding
+			if summaryWidth < 15 {
+				summaryWidth = 15
+			}
+		}
 	}
+
 	return []table.Column{
 		{Title: "Issue", Width: issueWidth},
 		{Title: "Status", Width: statusWidth},
