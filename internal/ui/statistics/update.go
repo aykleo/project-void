@@ -12,6 +12,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (m Model) getFirstRepoSource() string {
+	if len(m.selectedRepoSources) > 0 {
+		return m.selectedRepoSources[0]
+	}
+	return ""
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -118,18 +125,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, cmd
 						}
 
-						if m.hasGit && m.selectedRepoSource != "" {
+						if m.hasGit && len(m.selectedRepoSources) > 0 {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.authorFilter = authorNames
 							m.commitsLoading = true
 
 							var loadCmd tea.Cmd
 							if len(m.branchFilter) > 0 {
-
-								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, authorNames, m.branchFilter)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByAuthorsAndBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, authorNames, m.branchFilter)
+								} else {
+									loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSources[0], m.selectedDate, authorNames, m.branchFilter)
+								}
 							} else {
-
-								loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, authorNames)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByAuthorsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, authorNames)
+								} else {
+									loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSources[0], m.selectedDate, authorNames)
+								}
 							}
 							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 						} else {
@@ -140,18 +153,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "clear_author_filter" {
-					if m.hasGit && m.selectedRepoSource != "" {
+					if m.hasGit && len(m.selectedRepoSources) > 0 {
 						m.authorFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 
 						var loadCmd tea.Cmd
 						if len(m.branchFilter) > 0 {
-
-							loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, m.branchFilter)
+							if len(m.selectedRepoSources) > 1 {
+								loadCmd = loadCommitsByBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.branchFilter)
+							} else {
+								loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSources[0], m.selectedDate, m.branchFilter)
+							}
 						} else {
-
-							loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+							if len(m.selectedRepoSources) > 1 {
+								loadCmd = loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate)
+							} else {
+								loadCmd = loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate)
+							}
 						}
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					} else {
@@ -168,18 +187,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							return m, cmd
 						}
 
-						if m.hasGit && m.selectedRepoSource != "" {
+						if m.hasGit && len(m.selectedRepoSources) > 0 {
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							m.branchFilter = branchNames
 							m.commitsLoading = true
 
 							var loadCmd tea.Cmd
 							if len(m.authorFilter) > 0 {
-
-								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter, branchNames)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByAuthorsAndBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.authorFilter, branchNames)
+								} else {
+									loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSources[0], m.selectedDate, m.authorFilter, branchNames)
+								}
 							} else {
-
-								loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, branchNames)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, branchNames)
+								} else {
+									loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSources[0], m.selectedDate, branchNames)
+								}
 							}
 							return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 						} else {
@@ -190,18 +215,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "clear_branch_filter" {
-					if m.hasGit && m.selectedRepoSource != "" {
+					if m.hasGit && len(m.selectedRepoSources) > 0 {
 						m.branchFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
 
 						var loadCmd tea.Cmd
 						if len(m.authorFilter) > 0 {
-
-							loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
+							if len(m.selectedRepoSources) > 1 {
+								loadCmd = loadCommitsByAuthorsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.authorFilter)
+							} else {
+								loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSources[0], m.selectedDate, m.authorFilter)
+							}
 						} else {
-
-							loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+							if len(m.selectedRepoSources) > 1 {
+								loadCmd = loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate)
+							} else {
+								loadCmd = loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate)
+							}
 						}
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 					} else {
@@ -211,12 +242,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				if result.Action == "start" || result.Action == "reset" {
-					if m.hasGit && m.selectedRepoSource != "" && (len(m.authorFilter) > 0 || len(m.branchFilter) > 0) {
+					if m.hasGit && len(m.selectedRepoSources) > 0 && (len(m.authorFilter) > 0 || len(m.branchFilter) > 0) {
 						m.authorFilter = nil
 						m.branchFilter = nil
 						m.commitsLoading = true
 						tickCmd := m.commitsTable.StartLoadingWithCmd()
-						loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+						var loadCmd tea.Cmd
+						if len(m.selectedRepoSources) > 1 {
+							loadCmd = loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate)
+						} else {
+							loadCmd = loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate)
+						}
 						m.command = result.Action
 						m.submitted = true
 						return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
@@ -233,24 +269,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 						var cmds []tea.Cmd
 
-						if m.hasGit && m.selectedRepoSource != "" {
+						if m.hasGit && len(m.selectedRepoSources) > 0 {
 							m.commitsLoading = true
 							tickCmd := m.commitsTable.StartLoadingWithCmd()
 							cmds = append(cmds, tickCmd, m.commitsSpinner.Tick)
 
 							var loadCmd tea.Cmd
 							if len(m.authorFilter) > 0 && len(m.branchFilter) > 0 {
-
-								loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter, m.branchFilter)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByAuthorsAndBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.authorFilter, m.branchFilter)
+								} else {
+									loadCmd = loadCommitsByAuthorsAndBranchesCmd(m.selectedRepoSources[0], m.selectedDate, m.authorFilter, m.branchFilter)
+								}
 							} else if len(m.authorFilter) > 0 {
-
-								loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSource, m.selectedDate, m.authorFilter)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByAuthorsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.authorFilter)
+								} else {
+									loadCmd = loadCommitsByAuthorsCmd(m.selectedRepoSources[0], m.selectedDate, m.authorFilter)
+								}
 							} else if len(m.branchFilter) > 0 {
-
-								loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSource, m.selectedDate, m.branchFilter)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsByBranchesFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate, m.branchFilter)
+								} else {
+									loadCmd = loadCommitsByBranchesCmd(m.selectedRepoSources[0], m.selectedDate, m.branchFilter)
+								}
 							} else {
-
-								loadCmd = loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate)
+								} else {
+									loadCmd = loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate)
+								}
 							}
 							cmds = append(cmds, loadCmd)
 						}
@@ -279,14 +327,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, cmd
 				}
 
-				if result.Action == "git_set_repo" || result.Action == "git_clear_repo" {
+				if result.Action == "git_set_repo" || result.Action == "git_clear_repo" || result.Action == "git_remove_repo" {
 					if result.Success {
-						if repoData, ok := result.Data["repoURL"].(string); ok {
-							m.selectedRepoSource = repoData
+						if repoData, ok := result.Data["repoURLs"].([]string); ok {
+							m.selectedRepoSources = repoData
 
-							m.hasGit = m.selectedRepoSource != ""
+							m.hasGit = len(m.selectedRepoSources) > 0
 
-							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
+							firstRepo := ""
+							if len(m.selectedRepoSources) > 0 {
+								firstRepo = m.selectedRepoSources[0]
+							}
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", firstRepo, m.hasGit, m.hasJira)
 
 							m.authorFilter = nil
 							m.branchFilter = nil
@@ -303,10 +355,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.focusedTable = 0
 							}
 
-							if m.hasGit && m.selectedRepoSource != "" {
+							if m.hasGit && len(m.selectedRepoSources) > 0 {
 								m.commitsLoading = true
 								tickCmd := m.commitsTable.StartLoadingWithCmd()
-								loadCmd := loadCommitsCmd(m.selectedRepoSource, m.selectedDate)
+								var loadCmd tea.Cmd
+								if len(m.selectedRepoSources) > 1 {
+									loadCmd = loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate)
+								} else {
+									loadCmd = loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate)
+								}
 								return m, tea.Batch(tickCmd, loadCmd, m.commitsSpinner.Tick)
 							} else {
 								m.commitsTable = commitstable.InitialModel()
@@ -323,7 +380,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.selectedJiraSource = jiraConfig.Jira.BaseURL
 							m.hasJira = true
 
-							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.getFirstRepoSource(), m.hasGit, m.hasJira)
 
 							if m.hasGit && m.hasJira {
 								if m.focusedTable == 0 {
@@ -353,7 +410,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.hasJira = false
 							m.jiraTable = jiratable.InitialModel()
 
-							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.selectedRepoSource, m.hasGit, m.hasJira)
+							m.commandHandler = common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", m.getFirstRepoSource(), m.hasGit, m.hasJira)
 
 							if m.hasGit {
 								m.commitsTable.Focus()

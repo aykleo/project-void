@@ -28,8 +28,12 @@ func (m Model) View() string {
 	var gitDescription string
 	var jiraDescription string
 	currentDate := time.Now().Format("2006-01-02")
-	if userConfig, err := config.LoadUserConfig(); err == nil && userConfig.Git.RepoURL != "" {
-		gitDescription = fmt.Sprintf("Current repo: %s", lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(userConfig.Git.RepoURL))
+	if userConfig, err := config.LoadUserConfig(); err == nil && len(userConfig.Git.RepoURLs) > 0 {
+		if len(userConfig.Git.RepoURLs) == 1 {
+			gitDescription = fmt.Sprintf("Current repo: %s", lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(userConfig.Git.RepoURLs[0]))
+		} else {
+			gitDescription = fmt.Sprintf("Configured repositories (%d): %s", len(userConfig.Git.RepoURLs), lipgloss.NewStyle().Foreground(styles.HighlightColor).Render(userConfig.Git.RepoURLs[0]+" and others"))
+		}
 	} else {
 		gitDescription = "If you are a developer, you can use git status to check your repository configuration."
 	}
@@ -47,7 +51,7 @@ func (m Model) View() string {
 	if m.submitted {
 		inputSection = styles.NeutralStyle.Render(fmt.Sprintf("Command processed: %s\n\nNavigating...", m.command))
 	} else {
-		helpText := "Use 'git repo <url>' to configure a repository, 'void sd <date>' to set analysis date, or 'void st' to begin"
+		helpText := "Use 'git repo <url>' to add repositories, 'git repo list' to view them, 'void sd <date>' to set analysis date, or 'void st' to begin"
 		inputSection = m.commandHandler.RenderCommandPrompt(helpText)
 	}
 

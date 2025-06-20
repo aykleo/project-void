@@ -29,6 +29,25 @@ func loadCommitsCmd(repoSource string, since time.Time) tea.Cmd {
 	})
 }
 
+func loadCommitsFromMultipleReposCmd(repoSources []string, since time.Time) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if len(repoSources) == 0 {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsFromMultipleRepos(repoSources, since)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
 func loadCommitsByAuthorsCmd(repoSource string, since time.Time, authorNames []string) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
 		if repoSource == "" {
@@ -78,6 +97,63 @@ func loadCommitsByAuthorsAndBranchesCmd(repoSource string, since time.Time, auth
 		var commitsTable commitstable.Model = commitstable.InitialModel()
 		commitsTable.StartLoading()
 		err := commitsTable.LoadCommitsByAuthorsAndBranches(repoSource, since, authorNames, branchNames)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
+func loadCommitsByAuthorsFromMultipleReposCmd(repoSources []string, since time.Time, authorNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if len(repoSources) == 0 {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByAuthorsFromMultipleRepos(repoSources, since, authorNames)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
+func loadCommitsByBranchesFromMultipleReposCmd(repoSources []string, since time.Time, branchNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if len(repoSources) == 0 {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByBranchesFromMultipleRepos(repoSources, since, branchNames)
+		if err != nil {
+			return LoadErrorMsg{Error: err.Error()}
+		}
+
+		return LoadedMsg{CommitsTable: commitsTable}
+	})
+}
+
+func loadCommitsByAuthorsAndBranchesFromMultipleReposCmd(repoSources []string, since time.Time, authorNames []string, branchNames []string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		if len(repoSources) == 0 {
+			emptyTable := commitstable.InitialModel()
+			emptyTable.StartLoading()
+			return LoadedMsg{CommitsTable: emptyTable}
+		}
+
+		var commitsTable commitstable.Model = commitstable.InitialModel()
+		commitsTable.StartLoading()
+		err := commitsTable.LoadCommitsByAuthorsAndBranchesFromMultipleRepos(repoSources, since, authorNames, branchNames)
 		if err != nil {
 			return LoadErrorMsg{Error: err.Error()}
 		}

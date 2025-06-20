@@ -23,9 +23,9 @@ type JiraConfig struct {
 }
 
 type GitConfig struct {
-	RepoURL     string `json:"repo_url"`
-	RepoType    string `json:"repo_type"`
-	GitHubToken string `json:"github_token,omitempty"`
+	RepoURLs    []string `json:"repo_urls"`
+	RepoType    string   `json:"repo_type"`
+	GitHubToken string   `json:"github_token,omitempty"`
 }
 
 const configFileName = ".project-void-config.json"
@@ -51,7 +51,7 @@ func LoadUserConfig() (*UserConfig, error) {
 				UserFilterType: "participant",
 			},
 			Git: GitConfig{
-				RepoURL:  "",
+				RepoURLs: []string{},
 				RepoType: "local",
 			},
 		}, nil
@@ -201,10 +201,15 @@ func SetGitConfig(key, value string) error {
 
 	switch key {
 	case "repo", "repository", "repo_url":
-		config.Git.RepoURL = value
+		for _, existing := range config.Git.RepoURLs {
+			if existing == value {
+				return nil
+			}
+		}
+		config.Git.RepoURLs = append(config.Git.RepoURLs, value)
 		if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "git@") {
 			config.Git.RepoType = "remote"
-		} else {
+		} else if config.Git.RepoType != "remote" {
 			config.Git.RepoType = "local"
 		}
 	case "token", "apitoken", "api_token":
@@ -222,8 +227,58 @@ func ClearGitRepo() error {
 		return err
 	}
 
-	config.Git.RepoURL = ""
+	config.Git.RepoURLs = []string{}
 	config.Git.RepoType = "local"
 
 	return SaveUserConfig(config)
+}
+
+func RemoveGitRepo(repoURL string) error {
+	config, err := LoadUserConfig()
+	if err != nil {
+		return err
+	}
+
+	var updatedRepos []string
+	found := false
+	for _, existing := range config.Git.RepoURLs {
+		if existing != repoURL {
+			updatedRepos = append(updatedRepos, existing)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("repository not found: %s", repoURL)
+	}
+
+	config.Git.RepoURLs = updatedRepos
+
+	if len(config.Git.RepoURLs) == 0 {
+		config.Git.RepoType = "local"
+	} else {
+		hasRemote := false
+		for _, repo := range config.Git.RepoURLs {
+			if strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "https://") || strings.HasPrefix(repo, "git@") {
+				hasRemote = true
+				break
+			}
+		}
+		if hasRemote {
+			config.Git.RepoType = "remote"
+		} else {
+			config.Git.RepoType = "local"
+		}
+	}
+
+	return SaveUserConfig(config)
+}
+
+func ListGitRepos() ([]string, error) {
+	config, err := LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+	return config.Git.RepoURLs, nil
 }

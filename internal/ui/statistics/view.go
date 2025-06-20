@@ -48,7 +48,14 @@ func (m Model) View() string {
 		var contentParts []string
 
 		if m.hasGit && m.hasJira {
-			commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
+			var commitsHeader string
+			if len(m.selectedRepoSources) == 1 {
+				commitsHeader = fmt.Sprintf("Commits for the repo %s", m.selectedRepoSources[0])
+			} else if len(m.selectedRepoSources) > 1 {
+				commitsHeader = fmt.Sprintf("Commits for %d repositories", len(m.selectedRepoSources))
+			} else {
+				commitsHeader = "Commits"
+			}
 			jiraHeader := fmt.Sprintf("JIRA Issues for %s", m.selectedJiraSource)
 
 			if len(m.authorFilter) > 0 {
@@ -94,7 +101,14 @@ func (m Model) View() string {
 			contentParts = append(contentParts, m.jiraTable.View())
 
 		} else if m.hasGit {
-			commitsHeader := fmt.Sprintf("Commits for the repo %s", m.selectedRepoSource)
+			var commitsHeader string
+			if len(m.selectedRepoSources) == 1 {
+				commitsHeader = fmt.Sprintf("Commits for the repo %s", m.selectedRepoSources[0])
+			} else if len(m.selectedRepoSources) > 1 {
+				commitsHeader = fmt.Sprintf("Commits for %d repositories", len(m.selectedRepoSources))
+			} else {
+				commitsHeader = "Commits"
+			}
 
 			if len(m.authorFilter) > 0 {
 				authorFilterText := strings.Join(m.authorFilter, ", ")

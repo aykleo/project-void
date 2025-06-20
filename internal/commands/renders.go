@@ -88,8 +88,15 @@ func (r *Registry) GetGitHelpText() string {
 	help.WriteString(
 		fmt.Sprintf("  %s %s - %s\n",
 			commandStyle.Render("git"),
-			sectionHeaderStyle.Render("repo"),
-			descStyle.Render("Clear Git repository configuration"),
+			sectionHeaderStyle.Render("repo list"),
+			descStyle.Render("List all configured Git repositories"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s - %s\n",
+			commandStyle.Render("git"),
+			sectionHeaderStyle.Render("repo clear"),
+			descStyle.Render("Clear all Git repository configurations"),
 		),
 	)
 	help.WriteString(
@@ -97,7 +104,15 @@ func (r *Registry) GetGitHelpText() string {
 			commandStyle.Render("git"),
 			sectionHeaderStyle.Render("repo"),
 			argStyle.Render("<url-or-path>"),
-			descStyle.Render("Set Git repository URL or local path"),
+			descStyle.Render("Add Git repository URL or local path"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s %s %s - %s\n",
+			commandStyle.Render("git"),
+			sectionHeaderStyle.Render("repo remove"),
+			argStyle.Render("<url-or-path>"),
+			descStyle.Render("Remove specific Git repository from configuration"),
 		),
 	)
 	help.WriteString(
@@ -120,6 +135,23 @@ func (r *Registry) GetGitHelpText() string {
 		fmt.Sprintf("  %s - %s\n",
 			descStyle.Render("Remote"),
 			descStyle.Render("https://github.com/user/repo, git@github.com:user/repo.git"),
+		),
+	)
+
+	help.WriteString(sectionHeaderStyle.Render("\nMulti-Repository Support:") + "\n")
+	help.WriteString(
+		fmt.Sprintf("  %s\n",
+			descStyle.Render("• Add multiple repositories to track commits from all of them"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s\n",
+			descStyle.Render("• Commits are aggregated and deduplicated across repositories"),
+		),
+	)
+	help.WriteString(
+		fmt.Sprintf("  %s\n",
+			descStyle.Render("• Repository names are shown in the branch column for identification"),
 		),
 	)
 

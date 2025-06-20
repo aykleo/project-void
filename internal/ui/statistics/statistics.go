@@ -13,29 +13,29 @@ import (
 )
 
 type Model struct {
-	commitsTable       commitstable.Model
-	jiraTable          jiratable.Model
-	commandHandler     common.StatisticsCommandHandler
-	selectedFolder     string
-	selectedRepoSource string
-	selectedJiraSource string
-	selectedDate       time.Time
-	hasGit             bool
-	hasJira            bool
-	width              int
-	height             int
-	loaded             bool
-	loadError          string
-	focusedTable       int
-	command            string
-	submitted          bool
-	authorFilter       []string
-	branchFilter       []string
-	commitsSpinner     spinner.Model
-	jiraSpinner        spinner.Model
-	commitsLoading     bool
-	jiraLoading        bool
-	noConfigMessage    string
+	commitsTable        commitstable.Model
+	jiraTable           jiratable.Model
+	commandHandler      common.StatisticsCommandHandler
+	selectedFolder      string
+	selectedRepoSources []string
+	selectedJiraSource  string
+	selectedDate        time.Time
+	hasGit              bool
+	hasJira             bool
+	width               int
+	height              int
+	loaded              bool
+	loadError           string
+	focusedTable        int
+	command             string
+	submitted           bool
+	authorFilter        []string
+	branchFilter        []string
+	commitsSpinner      spinner.Model
+	jiraSpinner         spinner.Model
+	commitsLoading      bool
+	jiraLoading         bool
+	noConfigMessage     string
 }
 
 func InitialModel(selectedFolder string, selectedDate time.Time, hasGit, hasJira bool) Model {
@@ -54,9 +54,16 @@ func InitialModel(selectedFolder string, selectedDate time.Time, hasGit, hasJira
 
 	repoSource := selectedFolder
 	if selectedFolder == "" {
-		if gitConfig, err := config.LoadUserConfig(); err == nil && gitConfig.Git.RepoURL != "" {
-			repoSource = gitConfig.Git.RepoURL
+		if gitConfig, err := config.LoadUserConfig(); err == nil && len(gitConfig.Git.RepoURLs) > 0 {
+			repoSource = gitConfig.Git.RepoURLs[0]
 		}
+	}
+
+	repoSources := []string{}
+	if selectedFolder != "" {
+		repoSources = []string{selectedFolder}
+	} else if gitConfig, err := config.LoadUserConfig(); err == nil && len(gitConfig.Git.RepoURLs) > 0 {
+		repoSources = gitConfig.Git.RepoURLs
 	}
 
 	jiraSource := ""
@@ -92,21 +99,21 @@ func InitialModel(selectedFolder string, selectedDate time.Time, hasGit, hasJira
 	jiraTable.SetSpinner(&jiraSpinner)
 
 	return Model{
-		commitsTable:       commitsTable,
-		jiraTable:          jiraTable,
-		commandHandler:     common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", repoSource, actualHasGit, actualHasJira),
-		selectedFolder:     selectedFolder,
-		selectedRepoSource: repoSource,
-		selectedJiraSource: jiraSource,
-		selectedDate:       selectedDate,
-		hasGit:             actualHasGit,
-		hasJira:            actualHasJira,
-		noConfigMessage:    noConfigMessage,
-		focusedTable:       0,
-		commitsSpinner:     commitsSpinner,
-		jiraSpinner:        jiraSpinner,
-		commitsLoading:     actualHasGit,
-		jiraLoading:        actualHasJira,
+		commitsTable:        commitsTable,
+		jiraTable:           jiraTable,
+		commandHandler:      common.NewStatisticsCommandHandler("Enter a command (e.g., git repo <url>, git a <author>, void help)...", repoSource, actualHasGit, actualHasJira),
+		selectedFolder:      selectedFolder,
+		selectedRepoSources: repoSources,
+		selectedJiraSource:  jiraSource,
+		selectedDate:        selectedDate,
+		hasGit:              actualHasGit,
+		hasJira:             actualHasJira,
+		noConfigMessage:     noConfigMessage,
+		focusedTable:        0,
+		commitsSpinner:      commitsSpinner,
+		jiraSpinner:         jiraSpinner,
+		commitsLoading:      actualHasGit,
+		jiraLoading:         actualHasJira,
 	}
 }
 
@@ -116,7 +123,11 @@ func (m Model) Init() tea.Cmd {
 	cmds = append(cmds, m.commandHandler.Init())
 
 	if m.hasGit {
-		cmds = append(cmds, m.commitsTable.Init(), m.commitsSpinner.Tick, loadCommitsCmd(m.selectedRepoSource, m.selectedDate))
+		if len(m.selectedRepoSources) > 1 {
+			cmds = append(cmds, m.commitsTable.Init(), m.commitsSpinner.Tick, loadCommitsFromMultipleReposCmd(m.selectedRepoSources, m.selectedDate))
+		} else if len(m.selectedRepoSources) == 1 {
+			cmds = append(cmds, m.commitsTable.Init(), m.commitsSpinner.Tick, loadCommitsCmd(m.selectedRepoSources[0], m.selectedDate))
+		}
 	}
 
 	if m.hasJira {

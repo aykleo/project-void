@@ -57,12 +57,14 @@ func getCommitTableColumns(width int) []table.Column {
 	branchWidth := 12
 	authorWidth := 20
 	dateWidth := 12
-	numColumns := 4
-	messageWidth := width - branchWidth - authorWidth - dateWidth - 10 - (numColumns - 1)
+	repoWidth := 15
+	numColumns := 5
+	messageWidth := width - branchWidth - authorWidth - dateWidth - repoWidth - 10 - (numColumns - 1)
 	if messageWidth < 20 {
 		messageWidth = 20
 	}
 	return []table.Column{
+		{Title: "Repo", Width: repoWidth},
 		{Title: "Branch", Width: branchWidth},
 		{Title: "Author", Width: authorWidth},
 		{Title: "Date", Width: dateWidth},

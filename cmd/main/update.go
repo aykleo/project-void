@@ -63,11 +63,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					selectedDate = helpers.ToMidnight(time.Now())
 				}
 
-				repoSource := git.GetConfiguredRepoSource()
 				hasGit := git.ShouldEnableDevMode()
 				hasJira := jira.ShouldEnableJiraMode()
 
-				m.statsModel = statistics.InitialModel(repoSource, selectedDate, hasGit, hasJira)
+				m.statsModel = statistics.InitialModel("", selectedDate, hasGit, hasJira)
 
 				initCmd := m.statsModel.Init()
 

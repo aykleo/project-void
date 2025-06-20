@@ -84,18 +84,46 @@ func (r *Registry) ValidateCommand(input string) (Command, error) {
 		}
 
 		if subCommand == "repo" || subCommand == "repository" || subCommand == "r" {
-			if len(parts) < 3 {
+			if len(parts) == 2 {
 				return Command{
 					Name:        "git repo",
-					Description: "Clear Git repository configuration",
+					Description: "Show current Git repository configuration",
+					Action:      "git_status",
+				}, nil
+			}
+
+			if parts[2] == "clear" || parts[2] == "reset" {
+				return Command{
+					Name:        "git repo clear",
+					Description: "Clear all Git repositories",
 					Action:      "git_clear_repo",
+				}, nil
+			}
+
+			if parts[2] == "remove" || parts[2] == "rm" {
+				if len(parts) < 4 {
+					return Command{}, fmt.Errorf("git repo remove command requires a repository URL. Usage: git repo remove <url>")
+				}
+				value := strings.Join(parts[3:], " ")
+				return Command{
+					Name:        fmt.Sprintf("git repo remove %s", value),
+					Description: "Remove a specific Git repository",
+					Action:      "git_remove_repo",
+				}, nil
+			}
+
+			if parts[2] == "list" || parts[2] == "ls" {
+				return Command{
+					Name:        "git repo list",
+					Description: "List all configured Git repositories",
+					Action:      "git_list_repos",
 				}, nil
 			}
 
 			value := strings.Join(parts[2:], " ")
 			return Command{
 				Name:        fmt.Sprintf("git repo %s", value),
-				Description: "Set Git repository URL or path",
+				Description: "Add Git repository URL or path",
 				Action:      "git_set_repo",
 			}, nil
 		}

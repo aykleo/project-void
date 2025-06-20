@@ -63,7 +63,7 @@ func (g *GitHubProvider) parseGitHubURL(repoURL string) (owner, repo string, err
 func (g *GitHubProvider) makeRequest(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
@@ -71,7 +71,12 @@ func (g *GitHubProvider) makeRequest(url string) (*http.Response, error) {
 		req.Header.Set("Authorization", "token "+g.token)
 	}
 
-	return g.client.Do(req)
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (g *GitHubProvider) GetCommitsSince(repoURL string, since time.Time) ([]Commit, error) {
@@ -232,17 +237,17 @@ func (g *GitHubProvider) getBranches(owner, repo string) ([]GitHubBranch, error)
 
 	resp, err := g.makeRequest(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get branches for %s/%s: %w", owner, repo, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API error: %d", resp.StatusCode)
+		return nil, fmt.Errorf("GitHub API error for %s/%s branches: HTTP %d", owner, repo, resp.StatusCode)
 	}
 
 	var branches []GitHubBranch
 	if err := json.NewDecoder(resp.Body).Decode(&branches); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode branches response for %s/%s: %w", owner, repo, err)
 	}
 
 	return branches, nil
@@ -261,17 +266,17 @@ func (g *GitHubProvider) getCommitsFromBranch(owner, repo string, branch GitHubB
 
 	resp, err := g.makeRequest(fullURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get commits for %s/%s branch %s: %w", owner, repo, branch.Name, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API error: %d", resp.StatusCode)
+		return nil, fmt.Errorf("GitHub API error for %s/%s branch %s commits: HTTP %d", owner, repo, branch.Name, resp.StatusCode)
 	}
 
 	var githubCommits []GitHubCommit
 	if err := json.NewDecoder(resp.Body).Decode(&githubCommits); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode commits response for %s/%s branch %s: %w", owner, repo, branch.Name, err)
 	}
 
 	var commits []Commit
