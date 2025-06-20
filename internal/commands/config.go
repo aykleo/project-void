@@ -16,7 +16,17 @@ func GetGitConfigValue(commandName string) (string, string) {
 	value := strings.Join(parts[2:], " ")
 
 	if key == "repo" {
-		specialCommands := []string{"list", "ls", "clear", "reset", "remove", "rm"}
+		if strings.HasPrefix(value, "remove ") || strings.HasPrefix(value, "rm ") {
+			urlPart := strings.TrimPrefix(value, "remove ")
+			urlPart = strings.TrimPrefix(urlPart, "rm ")
+			urlPart = strings.TrimSpace(urlPart)
+			if urlPart != "" {
+				return "repo", urlPart
+			}
+			return "", ""
+		}
+
+		specialCommands := []string{"list", "ls", "clear", "reset"}
 		for _, special := range specialCommands {
 			if strings.HasPrefix(value, special) {
 				return "", ""
